@@ -15,9 +15,7 @@ Invoke this skill:
 ### Phase 1: Build Verification
 ```bash
 # Check if project builds
-npm run build 2>&1 | tail -20
-# OR
-pnpm build 2>&1 | tail -20
+bun run build 2>&1 | tail -20
 ```
 
 If build fails, STOP and fix before continuing.
@@ -25,7 +23,7 @@ If build fails, STOP and fix before continuing.
 ### Phase 2: Type Check
 ```bash
 # TypeScript projects
-npx tsc --noEmit 2>&1 | head -30
+bunx tsc --noEmit 2>&1 | head -30
 
 # Python projects
 pyright . 2>&1 | head -30
@@ -36,7 +34,7 @@ Report all type errors. Fix critical ones before continuing.
 ### Phase 3: Lint Check
 ```bash
 # JavaScript/TypeScript
-npm run lint 2>&1 | head -30
+bun run lint 2>&1 | head -30
 
 # Python
 ruff check . 2>&1 | head -30
@@ -45,7 +43,7 @@ ruff check . 2>&1 | head -30
 ### Phase 4: Test Suite
 ```bash
 # Run tests with coverage
-npm run test -- --coverage 2>&1 | tail -50
+bun test -- --coverage 2>&1 | tail -50
 
 # Check coverage threshold
 # Target: 80% minimum

@@ -22,7 +22,7 @@ You are an expert end-to-end testing specialist. Your mission is to ensure criti
 ### Agent Browser Setup
 ```bash
 # Install agent-browser globally
-npm install -g agent-browser
+bun add -g agent-browser
 
 # Install Chromium (required)
 agent-browser install
@@ -118,33 +118,33 @@ When Agent Browser isn't available or for complex test suites, fall back to Play
 ### Test Commands
 ```bash
 # Run all E2E tests
-npx playwright test
+bunx playwright test
 
 # Run specific test file
-npx playwright test tests/markets.spec.ts
+bunx playwright test tests/markets.spec.ts
 
 # Run tests in headed mode (see browser)
-npx playwright test --headed
+bunx playwright test --headed
 
 # Debug test with inspector
-npx playwright test --debug
+bunx playwright test --debug
 
 # Generate test code from actions
-npx playwright codegen http://localhost:3000
+bunx playwright codegen http://localhost:3000
 
 # Run tests with trace
-npx playwright test --trace on
+bunx playwright test --trace on
 
 # Show HTML report
-npx playwright show-report
+bunx playwright show-report
 
 # Update snapshots
-npx playwright test --update-snapshots
+bunx playwright test --update-snapshots
 
 # Run tests in specific browser
-npx playwright test --project=chromium
-npx playwright test --project=firefox
-npx playwright test --project=webkit
+bunx playwright test --project=chromium
+bunx playwright test --project=firefox
+bunx playwright test --project=webkit
 ```
 
 ## E2E Testing Workflow
@@ -549,7 +549,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    command: 'bun run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
@@ -562,10 +562,10 @@ export default defineConfig({
 ### Identifying Flaky Tests
 ```bash
 # Run test multiple times to check stability
-npx playwright test tests/markets/search.spec.ts --repeat-each=10
+bunx playwright test tests/markets/search.spec.ts --repeat-each=10
 
 # Run specific test with retries
-npx playwright test tests/markets/search.spec.ts --retries=3
+bunx playwright test tests/markets/search.spec.ts --retries=3
 ```
 
 ### Quarantine Pattern
@@ -676,13 +676,13 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: bunx playwright install --with-deps
 
       - name: Run E2E tests
-        run: npx playwright test
+        run: bunx playwright test
         env:
           BASE_URL: https://staging.pmx.trade
 

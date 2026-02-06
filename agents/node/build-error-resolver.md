@@ -22,32 +22,32 @@ You are an expert build error resolution specialist focused on fixing TypeScript
 
 ### Build & Type Checking Tools
 - **tsc** - TypeScript compiler for type checking
-- **npm/yarn** - Package management
+- **bun** - Package management and runtime
 - **eslint** - Linting (can cause build failures)
 - **next build** - Next.js production build
 
 ### Diagnostic Commands
 ```bash
 # TypeScript type check (no emit)
-npx tsc --noEmit
+bunx tsc --noEmit
 
 # TypeScript with pretty output
-npx tsc --noEmit --pretty
+bunx tsc --noEmit --pretty
 
 # Show all errors (don't stop at first)
-npx tsc --noEmit --pretty --incremental false
+bunx tsc --noEmit --pretty --incremental false
 
 # Check specific file
-npx tsc --noEmit path/to/file.ts
+bunx tsc --noEmit path/to/file.ts
 
 # ESLint check
-npx eslint . --ext .ts,.tsx,.js,.jsx
+bunx eslint . --ext .ts,.tsx,.js,.jsx
 
 # Next.js build (production)
-npm run build
+bun run build
 
 # Next.js build with debug
-npm run build -- --debug
+bun run build -- --debug
 ```
 
 ## Error Resolution Workflow
@@ -55,7 +55,7 @@ npm run build -- --debug
 ### 1. Collect All Errors
 ```
 a) Run full type check
-   - npx tsc --noEmit --pretty
+   - bunx tsc --noEmit --pretty
    - Capture ALL errors, not just first
 
 b) Categorize errors by type
@@ -157,7 +157,7 @@ import { formatDate } from '@/lib/utils'
 import { formatDate } from '../lib/utils'
 
 // ✅ FIX 3: Install missing package
-npm install @/lib/utils
+bun install @/lib/utils
 ```
 
 **Pattern 5: Type Mismatch**
@@ -230,8 +230,8 @@ async function fetchData() {
 import React from 'react'
 
 // ✅ FIX: Install dependencies
-npm install react
-npm install --save-dev @types/react
+bun install react
+bun install --save-dev @types/react
 
 // ✅ CHECK: Verify package.json has dependency
 {
@@ -428,11 +428,11 @@ Parameter 'market' implicitly has an 'any' type.
 
 ## Verification Steps
 
-1. ✅ TypeScript check passes: `npx tsc --noEmit`
-2. ✅ Next.js build succeeds: `npm run build`
-3. ✅ ESLint check passes: `npx eslint .`
+1. ✅ TypeScript check passes: `bunx tsc --noEmit`
+2. ✅ Next.js build succeeds: `bun run build`
+3. ✅ ESLint check passes: `bunx eslint .`
 4. ✅ No new errors introduced
-5. ✅ Development server runs: `npm run dev`
+5. ✅ Development server runs: `bun run dev`
 
 ## Summary
 
@@ -452,8 +452,8 @@ Parameter 'market' implicitly has an 'any' type.
 ## When to Use This Agent
 
 **USE when:**
-- `npm run build` fails
-- `npx tsc --noEmit` shows errors
+- `bun run build` fails
+- `bunx tsc --noEmit` shows errors
 - Type errors blocking development
 - Import/module resolution errors
 - Configuration errors
@@ -490,37 +490,37 @@ Parameter 'market' implicitly has an 'any' type.
 
 ```bash
 # Check for errors
-npx tsc --noEmit
+bunx tsc --noEmit
 
 # Build Next.js
-npm run build
+bun run build
 
 # Clear cache and rebuild
 rm -rf .next node_modules/.cache
-npm run build
+bun run build
 
 # Check specific file
-npx tsc --noEmit src/path/to/file.ts
+bunx tsc --noEmit src/path/to/file.ts
 
 # Install missing dependencies
-npm install
+bun install
 
 # Fix ESLint issues automatically
-npx eslint . --fix
+bunx eslint . --fix
 
 # Update TypeScript
-npm install --save-dev typescript@latest
+bun install --save-dev typescript@latest
 
 # Verify node_modules
-rm -rf node_modules package-lock.json
-npm install
+rm -rf node_modules bun.lockb
+bun install
 ```
 
 ## Success Metrics
 
 After build error resolution:
-- ✅ `npx tsc --noEmit` exits with code 0
-- ✅ `npm run build` completes successfully
+- ✅ `bunx tsc --noEmit` exits with code 0
+- ✅ `bun run build` completes successfully
 - ✅ No new errors introduced
 - ✅ Minimal lines changed (< 5% of affected file)
 - ✅ Build time not significantly increased

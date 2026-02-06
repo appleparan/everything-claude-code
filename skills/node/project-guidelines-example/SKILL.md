@@ -254,13 +254,13 @@ async def test_health_check(client: AsyncClient):
 
 ```bash
 # Run tests
-npm run test
+bun run test
 
 # Run with coverage
-npm run test -- --coverage
+bun run test -- --coverage
 
 # Run E2E tests
-npm run test:e2e
+bun run test:e2e
 ```
 
 **Test structure:**
@@ -289,7 +289,7 @@ describe('WorkspacePanel', () => {
 ### Pre-Deployment Checklist
 
 - [ ] All tests passing locally
-- [ ] `npm run build` succeeds (frontend)
+- [ ] `bun run build` succeeds (frontend)
 - [ ] `poetry run pytest` passes (backend)
 - [ ] No hardcoded secrets
 - [ ] Environment variables documented
@@ -299,7 +299,7 @@ describe('WorkspacePanel', () => {
 
 ```bash
 # Build and deploy frontend
-cd frontend && npm run build
+cd frontend && bun run build
 gcloud run deploy frontend --source .
 
 # Build and deploy backend

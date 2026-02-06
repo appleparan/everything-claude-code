@@ -23,7 +23,7 @@ Reads observations from `~/.claude/homunculus/observations.jsonl`:
 ```jsonl
 {"timestamp":"2025-01-22T10:30:00Z","event":"tool_start","session":"abc123","tool":"Edit","input":"..."}
 {"timestamp":"2025-01-22T10:30:01Z","event":"tool_complete","session":"abc123","tool":"Edit","output":"..."}
-{"timestamp":"2025-01-22T10:30:05Z","event":"tool_start","session":"abc123","tool":"Bash","input":"npm test"}
+{"timestamp":"2025-01-22T10:30:05Z","event":"tool_start","session":"abc123","tool":"Bash","input":"bun test"}
 {"timestamp":"2025-01-22T10:30:10Z","event":"tool_complete","session":"abc123","tool":"Bash","output":"All tests pass"}
 ```
 

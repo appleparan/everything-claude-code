@@ -160,7 +160,7 @@ test.describe('Market Search and View Flow', () => {
 
 ```bash
 # Run the generated test
-npx playwright test tests/e2e/markets/search-and-view.spec.ts
+bunx playwright test tests/e2e/markets/search-and-view.spec.ts
 
 Running 3 tests using 3 workers
 
@@ -196,7 +196,7 @@ Artifacts:
 🔍 Traces: 0 files (only on failure)
 📊 HTML Report: playwright-report/index.html
 
-View report: npx playwright show-report
+View report: bunx playwright show-report
 ```
 
 ✅ E2E test suite ready for CI/CD integration!
@@ -221,10 +221,10 @@ When tests run, the following artifacts are captured:
 
 ```bash
 # View HTML report in browser
-npx playwright show-report
+bunx playwright show-report
 
 # View specific trace file
-npx playwright show-trace artifacts/trace-abc123.zip
+bunx playwright show-trace artifacts/trace-abc123.zip
 
 # Screenshots are saved in artifacts/ directory
 open artifacts/search-results.png
@@ -268,10 +268,10 @@ Add to your CI pipeline:
 ```yaml
 # .github/workflows/e2e.yml
 - name: Install Playwright
-  run: npx playwright install --with-deps
+  run: bunx playwright install --with-deps
 
 - name: Run E2E tests
-  run: npx playwright test
+  run: bunx playwright test
 
 - name: Upload artifacts
   if: always()
@@ -344,20 +344,20 @@ This command invokes the `e2e-runner` agent located at:
 
 ```bash
 # Run all E2E tests
-npx playwright test
+bunx playwright test
 
 # Run specific test file
-npx playwright test tests/e2e/markets/search.spec.ts
+bunx playwright test tests/e2e/markets/search.spec.ts
 
 # Run in headed mode (see browser)
-npx playwright test --headed
+bunx playwright test --headed
 
 # Debug test
-npx playwright test --debug
+bunx playwright test --debug
 
 # Generate test code
-npx playwright codegen http://localhost:3000
+bunx playwright codegen http://localhost:3000
 
 # View report
-npx playwright show-report
+bunx playwright show-report
 ```

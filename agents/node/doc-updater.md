@@ -28,13 +28,13 @@ You are a documentation specialist focused on keeping codemaps and documentation
 ### Analysis Commands
 ```bash
 # Analyze TypeScript project structure (run custom script using ts-morph library)
-npx tsx scripts/codemaps/generate.ts
+bunx tsx scripts/codemaps/generate.ts
 
 # Generate dependency graph
-npx madge --image graph.svg src/
+bunx madge --image graph.svg src/
 
 # Extract JSDoc comments
-npx jsdoc2md src/**/*.ts
+bunx jsdoc2md src/**/*.ts
 ```
 
 ## Codemap Generation Workflow
@@ -237,17 +237,17 @@ Brief description
 
 \`\`\`bash
 # Installation
-npm install
+bun install
 
 # Environment variables
 cp .env.example .env.local
 # Fill in: OPENAI_API_KEY, REDIS_URL, etc.
 
 # Development
-npm run dev
+bun run dev
 
 # Build
-npm run build
+bun run build
 \`\`\`
 
 ## Architecture

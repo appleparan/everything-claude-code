@@ -199,7 +199,7 @@ jobs:
         
       # Dependency audit
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: bun audit --audit-level=high
         
       # Use OIDC, not long-lived tokens
       - name: Configure AWS credentials
@@ -215,9 +215,9 @@ jobs:
 // package.json - Use lock files and integrity checks
 {
   "scripts": {
-    "install": "npm ci",  // Use ci for reproducible builds
-    "audit": "npm audit --audit-level=moderate",
-    "check": "npm outdated"
+    "install": "bun install --frozen-lockfile",  // For reproducible builds
+    "audit": "bun audit --audit-level=moderate",
+    "check": "bun outdated"
   }
 }
 ```

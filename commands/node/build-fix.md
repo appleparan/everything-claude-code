@@ -2,7 +2,7 @@
 
 Incrementally fix TypeScript and build errors:
 
-1. Run build: npm run build or pnpm build
+1. Run build: bun run build
 
 2. Parse error output:
    - Group by file

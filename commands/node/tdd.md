@@ -124,7 +124,7 @@ describe('calculateLiquidityScore', () => {
 ## Step 3: Run Tests - Verify FAIL
 
 ```bash
-npm test lib/liquidity.test.ts
+bun test lib/liquidity.test.ts
 
 FAIL lib/liquidity.test.ts
   ✕ should return high score for liquid market (2 ms)
@@ -169,7 +169,7 @@ export function calculateLiquidityScore(market: MarketData): number {
 ## Step 5: Run Tests - Verify PASS
 
 ```bash
-npm test lib/liquidity.test.ts
+bun test lib/liquidity.test.ts
 
 PASS lib/liquidity.test.ts
   ✓ should return high score for liquid market (3 ms)
@@ -226,7 +226,7 @@ export function calculateLiquidityScore(market: MarketData): number {
 ## Step 7: Verify Tests Still Pass
 
 ```bash
-npm test lib/liquidity.test.ts
+bun test lib/liquidity.test.ts
 
 PASS lib/liquidity.test.ts
   ✓ should return high score for liquid market (3 ms)
@@ -241,7 +241,7 @@ PASS lib/liquidity.test.ts
 ## Step 8: Check Coverage
 
 ```bash
-npm test -- --coverage lib/liquidity.test.ts
+bun test -- --coverage lib/liquidity.test.ts
 
 File           | % Stmts | % Branch | % Funcs | % Lines
 ---------------|---------|----------|---------|--------

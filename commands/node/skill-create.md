@@ -145,8 +145,8 @@ src/
 
 ### Database Migration
 1. Modify `src/db/schema.ts`
-2. Run `pnpm db:generate`
-3. Run `pnpm db:migrate`
+2. Run `bun run db:generate`
+3. Run `bun run db:migrate`
 
 ## Testing Patterns
 

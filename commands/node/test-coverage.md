@@ -2,7 +2,7 @@
 
 Analyze test coverage and generate missing tests:
 
-1. Run tests with coverage: npm test --coverage or pnpm test --coverage
+1. Run tests with coverage: bun test --coverage
 
 2. Analyze coverage report (coverage/coverage-summary.json)
 
