@@ -316,7 +316,7 @@ When invoked:
 
 - **PEP 8 Compliance**: Code formatting violations
   - Import order (stdlib, third-party, local)
-  - Line length (default 88 for ruff)
+  - Line length (100, single quotes)
   - Naming conventions (snake_case for functions/variables, PascalCase for classes)
   - Spacing around operators
 
