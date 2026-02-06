@@ -105,6 +105,16 @@
         "description": "Warn about print() statements after edits"
       },
       {
+        "matcher": "(tool == \"Edit\" || tool == \"Write\") && tool_input.file_path matches \"\\\\.md$\"",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run python3 -c \"import sys, json, subprocess; d=sys.stdin.read(); i=json.loads(d); p=i.get('tool_input',{}).get('file_path',''); r=subprocess.run(['bunx','markdownlint-cli',p],capture_output=True,text=True) if p else None; r and r.stdout.strip() and sys.stderr.write(r.stdout.strip()+'\\n'); r and r.stderr.strip() and sys.stderr.write(r.stderr.strip()+'\\n'); print(d,end='')\""
+          }
+        ],
+        "description": "Lint markdown files with markdownlint after edits"
+      },
+      {
         "matcher": "tool == \"Bash\" && tool_input.command matches \"(uv run pytest|pytest|uv run manage\\.py test)\"",
         "hooks": [
           {
