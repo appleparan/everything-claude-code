@@ -20,18 +20,18 @@ Reference this skill when working on the specific project it's designed for. Pro
 ## Architecture Overview
 
 **Tech Stack:**
-- **Frontend**: Next.js 15 (App Router), TypeScript, React
+- **Frontend**: SvelteKit 5, Svelte 5 (runes), TypeScript, Tailwind CSS 4
 - **Backend**: FastAPI (Python), Pydantic models
 - **Database**: Supabase (PostgreSQL)
 - **AI**: Claude API with tool calling and structured output
 - **Deployment**: Google Cloud Run
-- **Testing**: Playwright (E2E), pytest (backend), React Testing Library
+- **Testing**: Playwright (E2E), pytest (backend), Svelte Testing Library
 
 **Services:**
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                         Frontend                            │
-│  Next.js 15 + TypeScript + TailwindCSS                     │
+│  SvelteKit 5 + Svelte 5 + TypeScript + Tailwind CSS 4      │
 │  Deployed: Vercel / Cloud Run                              │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -58,18 +58,19 @@ Reference this skill when working on the specific project it's designed for. Pro
 project/
 ├── frontend/
 │   └── src/
-│       ├── app/              # Next.js app router pages
-│       │   ├── api/          # API routes
-│       │   ├── (auth)/       # Auth-protected routes
+│       ├── routes/           # SvelteKit file-based routing
+│       │   ├── api/          # API routes (+server.ts)
+│       │   ├── (auth)/       # Auth-protected route group
 │       │   └── workspace/    # Main app workspace
-│       ├── components/       # React components
-│       │   ├── ui/           # Base UI components
-│       │   ├── forms/        # Form components
-│       │   └── layouts/      # Layout components
-│       ├── hooks/            # Custom React hooks
-│       ├── lib/              # Utilities
-│       ├── types/            # TypeScript definitions
-│       └── config/           # Configuration
+│       ├── lib/
+│       │   ├── components/   # Svelte components
+│       │   │   ├── ui/       # Base UI components
+│       │   │   ├── forms/    # Form components
+│       │   │   └── layouts/  # Layout components
+│       │   ├── stores/       # Shared state (.svelte.ts)
+│       │   ├── utils/        # Utilities
+│       │   └── types/        # TypeScript definitions
+│       └── app.css           # Tailwind CSS 4 config
 │
 ├── backend/
 │   ├── routers/              # FastAPI route handlers
@@ -179,39 +180,36 @@ async def analyze_with_claude(content: str) -> AnalysisResult:
     return AnalysisResult(**tool_use.input)
 ```
 
-### Custom Hooks (React)
+### Reactive API Store (Svelte 5)
 
 ```typescript
-import { useState, useCallback } from 'react'
+// stores/api.svelte.ts
+export function createApiStore<T>(fetchFn: () => Promise<ApiResponse<T>>) {
+  let data = $state<T | null>(null)
+  let loading = $state(false)
+  let error = $state<string | null>(null)
 
-interface UseApiState<T> {
-  data: T | null
-  loading: boolean
-  error: string | null
-}
-
-export function useApi<T>(
-  fetchFn: () => Promise<ApiResponse<T>>
-) {
-  const [state, setState] = useState<UseApiState<T>>({
-    data: null,
-    loading: false,
-    error: null,
-  })
-
-  const execute = useCallback(async () => {
-    setState(prev => ({ ...prev, loading: true, error: null }))
+  async function execute() {
+    loading = true
+    error = null
 
     const result = await fetchFn()
 
     if (result.success) {
-      setState({ data: result.data!, loading: false, error: null })
+      data = result.data!
     } else {
-      setState({ data: null, loading: false, error: result.error! })
+      error = result.error!
     }
-  }, [fetchFn])
 
-  return { ...state, execute }
+    loading = false
+  }
+
+  return {
+    get data() { return data },
+    get loading() { return loading },
+    get error() { return error },
+    execute
+  }
 }
 ```
 
@@ -250,7 +248,7 @@ async def test_health_check(client: AsyncClient):
     assert response.json()["status"] == "healthy"
 ```
 
-### Frontend (React Testing Library)
+### Frontend (Svelte Testing Library)
 
 ```bash
 # Run tests
@@ -265,18 +263,18 @@ bun run test:e2e
 
 **Test structure:**
 ```typescript
-import { render, screen, fireEvent } from '@testing-library/react'
-import { WorkspacePanel } from './WorkspacePanel'
+import { render, screen, fireEvent } from '@testing-library/svelte'
+import WorkspacePanel from './WorkspacePanel.svelte'
 
 describe('WorkspacePanel', () => {
   it('renders workspace correctly', () => {
-    render(<WorkspacePanel />)
+    render(WorkspacePanel)
     expect(screen.getByRole('main')).toBeInTheDocument()
   })
 
   it('handles session creation', async () => {
-    render(<WorkspacePanel />)
-    fireEvent.click(screen.getByText('New Session'))
+    render(WorkspacePanel)
+    await fireEvent.click(screen.getByText('New Session'))
     expect(await screen.findByText('Session created')).toBeInTheDocument()
   })
 })
@@ -310,10 +308,10 @@ gcloud run deploy backend --source .
 ### Environment Variables
 
 ```bash
-# Frontend (.env.local)
-NEXT_PUBLIC_API_URL=https://api.example.com
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+# Frontend (.env)
+PUBLIC_API_URL=https://api.example.com
+PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+PUBLIC_SUPABASE_ANON_KEY=eyJ...
 
 # Backend (.env)
 DATABASE_URL=postgresql://...
@@ -341,5 +339,5 @@ SUPABASE_KEY=eyJ...
 
 - `coding-standards.md` - General coding best practices
 - `backend-patterns.md` - API and database patterns
-- `frontend-patterns.md` - React and Next.js patterns
+- `frontend-patterns.md` - Svelte 5 and SvelteKit patterns
 - `tdd-workflow/` - Test-driven development methodology

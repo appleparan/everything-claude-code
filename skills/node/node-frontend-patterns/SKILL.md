@@ -1,631 +1,661 @@
 ---
 name: frontend-patterns
-description: Frontend development patterns for React, Next.js, state management, performance optimization, and UI best practices.
+description: Frontend development patterns for Svelte 5, SvelteKit, Tailwind CSS 4, state management with runes, performance optimization, and UI best practices.
 ---
 
 # Frontend Development Patterns
 
-Modern frontend patterns for React, Next.js, and performant user interfaces.
+Modern frontend patterns for Svelte 5, SvelteKit, and Tailwind CSS 4.
 
-## Component Patterns
+## Svelte 5 Runes
 
-### Composition Over Inheritance
+### Component Props with $props
 
-```typescript
-// ✅ GOOD: Component composition
-interface CardProps {
-  children: React.ReactNode
-  variant?: 'default' | 'outlined'
-}
+```svelte
+<!-- Card.svelte -->
+<script lang="ts">
+  import type { Snippet } from 'svelte'
 
-export function Card({ children, variant = 'default' }: CardProps) {
-  return <div className={`card card-${variant}`}>{children}</div>
-}
+  interface Props {
+    variant?: 'default' | 'outlined'
+    children: Snippet
+    header?: Snippet
+  }
 
-export function CardHeader({ children }: { children: React.ReactNode }) {
-  return <div className="card-header">{children}</div>
-}
+  let { variant = 'default', children, header }: Props = $props()
+</script>
 
-export function CardBody({ children }: { children: React.ReactNode }) {
-  return <div className="card-body">{children}</div>
-}
+<div class="card card-{variant}">
+  {#if header}
+    <div class="card-header">
+      {@render header()}
+    </div>
+  {/if}
+  <div class="card-body">
+    {@render children()}
+  </div>
+</div>
+```
 
-// Usage
-<Card>
-  <CardHeader>Title</CardHeader>
-  <CardBody>Content</CardBody>
+```svelte
+<!-- Usage -->
+<Card variant="outlined">
+  {#snippet header()}
+    <h2>Title</h2>
+  {/snippet}
+  <p>Content goes here</p>
 </Card>
 ```
 
-### Compound Components
+### Reactive State with $state and $derived
 
-```typescript
-interface TabsContextValue {
-  activeTab: string
-  setActiveTab: (tab: string) => void
-}
+```svelte
+<script lang="ts">
+  let count = $state(0)
+  let doubled = $derived(count * 2)
 
-const TabsContext = createContext<TabsContextValue | undefined>(undefined)
+  // Deep reactivity with objects
+  let user = $state({
+    name: 'John',
+    preferences: { theme: 'dark' }
+  })
 
-export function Tabs({ children, defaultTab }: {
-  children: React.ReactNode
-  defaultTab: string
-}) {
-  const [activeTab, setActiveTab] = useState(defaultTab)
+  // $state.frozen for immutable data (no deep reactivity)
+  let markets = $state.frozen<Market[]>([])
+</script>
 
-  return (
-    <TabsContext.Provider value={{ activeTab, setActiveTab }}>
-      {children}
-    </TabsContext.Provider>
-  )
-}
-
-export function TabList({ children }: { children: React.ReactNode }) {
-  return <div className="tab-list">{children}</div>
-}
-
-export function Tab({ id, children }: { id: string, children: React.ReactNode }) {
-  const context = useContext(TabsContext)
-  if (!context) throw new Error('Tab must be used within Tabs')
-
-  return (
-    <button
-      className={context.activeTab === id ? 'active' : ''}
-      onClick={() => context.setActiveTab(id)}
-    >
-      {children}
-    </button>
-  )
-}
-
-// Usage
-<Tabs defaultTab="overview">
-  <TabList>
-    <Tab id="overview">Overview</Tab>
-    <Tab id="details">Details</Tab>
-  </TabList>
-</Tabs>
+<p>{count} × 2 = {doubled}</p>
+<button onclick={() => count++}>Increment</button>
 ```
 
-### Render Props Pattern
+### Side Effects with $effect
 
-```typescript
-interface DataLoaderProps<T> {
-  url: string
-  children: (data: T | null, loading: boolean, error: Error | null) => React.ReactNode
-}
+```svelte
+<script lang="ts">
+  let searchQuery = $state('')
+  let results = $state<Market[]>([])
 
-export function DataLoader<T>({ url, children }: DataLoaderProps<T>) {
-  const [data, setData] = useState<T | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+  // Runs when searchQuery changes
+  $effect(() => {
+    if (!searchQuery) return
 
-  useEffect(() => {
+    const controller = new AbortController()
+
+    fetch(`/api/search?q=${searchQuery}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => results = data)
+
+    // Cleanup function
+    return () => controller.abort()
+  })
+
+  // Debug with $inspect
+  $inspect(results)
+</script>
+```
+
+### Bindable Props with $bindable
+
+```svelte
+<!-- SearchInput.svelte -->
+<script lang="ts">
+  interface Props {
+    value: string
+    placeholder?: string
+  }
+
+  let { value = $bindable(), placeholder = 'Search...' }: Props = $props()
+</script>
+
+<input
+  type="text"
+  bind:value
+  {placeholder}
+  class="w-full rounded-lg border px-4 py-2"
+/>
+```
+
+```svelte
+<!-- Usage: two-way binding -->
+<script lang="ts">
+  let query = $state('')
+</script>
+
+<SearchInput bind:value={query} />
+<p>Searching: {query}</p>
+```
+
+## Component Patterns
+
+### Compound Components with Context
+
+```svelte
+<!-- Tabs.svelte -->
+<script lang="ts" module>
+  export interface TabsContext {
+    activeTab: string
+    setActiveTab: (tab: string) => void
+  }
+</script>
+
+<script lang="ts">
+  import { setContext } from 'svelte'
+  import type { Snippet } from 'svelte'
+
+  interface Props {
+    defaultTab: string
+    children: Snippet
+  }
+
+  let { defaultTab, children }: Props = $props()
+  let activeTab = $state(defaultTab)
+
+  setContext<TabsContext>('tabs', {
+    get activeTab() { return activeTab },
+    setActiveTab: (tab: string) => activeTab = tab
+  })
+</script>
+
+<div class="tabs">
+  {@render children()}
+</div>
+```
+
+```svelte
+<!-- Tab.svelte -->
+<script lang="ts">
+  import { getContext } from 'svelte'
+  import type { TabsContext } from './Tabs.svelte'
+  import type { Snippet } from 'svelte'
+
+  interface Props {
+    id: string
+    children: Snippet
+  }
+
+  let { id, children }: Props = $props()
+  const ctx = getContext<TabsContext>('tabs')
+  let isActive = $derived(ctx.activeTab === id)
+</script>
+
+<button
+  class:active={isActive}
+  onclick={() => ctx.setActiveTab(id)}
+>
+  {@render children()}
+</button>
+```
+
+### Generic Data Loader
+
+```svelte
+<!-- DataLoader.svelte -->
+<script lang="ts" generics="T">
+  import type { Snippet } from 'svelte'
+
+  interface Props {
+    url: string
+    children: Snippet<[T]>
+    loading?: Snippet
+    error?: Snippet<[Error]>
+  }
+
+  let { url, children, loading, error: errorSnippet }: Props = $props()
+
+  let data = $state<T | null>(null)
+  let isLoading = $state(true)
+  let err = $state<Error | null>(null)
+
+  $effect(() => {
+    isLoading = true
+    err = null
+
     fetch(url)
-      .then(res => res.json())
-      .then(setData)
-      .catch(setError)
-      .finally(() => setLoading(false))
-  }, [url])
+      .then(r => r.json())
+      .then(d => data = d)
+      .catch(e => err = e)
+      .finally(() => isLoading = false)
+  })
+</script>
 
-  return <>{children(data, loading, error)}</>
-}
+{#if isLoading && loading}
+  {@render loading()}
+{:else if err && errorSnippet}
+  {@render errorSnippet(err)}
+{:else if data}
+  {@render children(data)}
+{/if}
+```
 
-// Usage
-<DataLoader<Market[]> url="/api/markets">
-  {(markets, loading, error) => {
-    if (loading) return <Spinner />
-    if (error) return <Error error={error} />
-    return <MarketList markets={markets!} />
-  }}
+```svelte
+<!-- Usage -->
+<DataLoader url="/api/markets" let:data>
+  {#snippet loading()}
+    <Spinner />
+  {/snippet}
+  {#snippet error(err)}
+    <p>Error: {err.message}</p>
+  {/snippet}
+  <MarketList markets={data} />
 </DataLoader>
 ```
 
-## Custom Hooks Patterns
+## Tailwind CSS 4 Patterns
 
-### State Management Hook
+### CSS-First Configuration
 
-```typescript
-export function useToggle(initialValue = false): [boolean, () => void] {
-  const [value, setValue] = useState(initialValue)
+```css
+/* app.css */
+@import "tailwindcss";
 
-  const toggle = useCallback(() => {
-    setValue(v => !v)
-  }, [])
+@theme {
+  --color-brand: #3b82f6;
+  --color-brand-dark: #1d4ed8;
+  --color-surface: #ffffff;
+  --color-surface-dark: #1e293b;
 
-  return [value, toggle]
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --breakpoint-3xl: 1920px;
+
+  --animate-fade-in: fade-in 0.3s ease-out;
 }
 
-// Usage
-const [isOpen, toggleOpen] = useToggle()
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Custom variant */
+@variant dark (&:where(.dark, .dark *));
+
+/* Custom utility */
+@utility container-narrow {
+  max-width: 48rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
 ```
 
-### Async Data Fetching Hook
+### Dark Mode with Tailwind 4
 
-```typescript
-interface UseQueryOptions<T> {
-  onSuccess?: (data: T) => void
-  onError?: (error: Error) => void
-  enabled?: boolean
-}
+```svelte
+<!-- ThemeToggle.svelte -->
+<script lang="ts">
+  let isDark = $state(
+    typeof window !== 'undefined' &&
+    document.documentElement.classList.contains('dark')
+  )
 
-export function useQuery<T>(
-  key: string,
-  fetcher: () => Promise<T>,
-  options?: UseQueryOptions<T>
-) {
-  const [data, setData] = useState<T | null>(null)
-  const [error, setError] = useState<Error | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  const refetch = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const result = await fetcher()
-      setData(result)
-      options?.onSuccess?.(result)
-    } catch (err) {
-      const error = err as Error
-      setError(error)
-      options?.onError?.(error)
-    } finally {
-      setLoading(false)
-    }
-  }, [fetcher, options])
-
-  useEffect(() => {
-    if (options?.enabled !== false) {
-      refetch()
-    }
-  }, [key, refetch, options?.enabled])
-
-  return { data, error, loading, refetch }
-}
-
-// Usage
-const { data: markets, loading, error, refetch } = useQuery(
-  'markets',
-  () => fetch('/api/markets').then(r => r.json()),
-  {
-    onSuccess: data => console.log('Fetched', data.length, 'markets'),
-    onError: err => console.error('Failed:', err)
+  function toggle() {
+    isDark = !isDark
+    document.documentElement.classList.toggle('dark', isDark)
+    localStorage.setItem('theme', isDark ? 'dark' : 'light')
   }
-)
+</script>
+
+<button
+  onclick={toggle}
+  class="rounded-lg bg-surface p-2 dark:bg-surface-dark"
+>
+  {isDark ? 'Light' : 'Dark'}
+</button>
 ```
 
-### Debounce Hook
+### Responsive Layout
 
-```typescript
-export function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value)
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value)
-    }, delay)
-
-    return () => clearTimeout(handler)
-  }, [value, delay])
-
-  return debouncedValue
-}
-
-// Usage
-const [searchQuery, setSearchQuery] = useState('')
-const debouncedQuery = useDebounce(searchQuery, 500)
-
-useEffect(() => {
-  if (debouncedQuery) {
-    performSearch(debouncedQuery)
-  }
-}, [debouncedQuery])
+```svelte
+<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 3xl:grid-cols-4">
+  {#each markets as market (market.id)}
+    <div class="rounded-xl bg-surface p-6 shadow-sm transition-shadow hover:shadow-md dark:bg-surface-dark">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        {market.name}
+      </h3>
+      <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+        {market.description}
+      </p>
+    </div>
+  {/each}
+</div>
 ```
 
 ## State Management Patterns
 
-### Context + Reducer Pattern
+### Shared State with Stores (Svelte 5)
 
 ```typescript
-interface State {
-  markets: Market[]
-  selectedMarket: Market | null
-  loading: boolean
-}
+// stores/markets.svelte.ts
+export function createMarketStore() {
+  let markets = $state<Market[]>([])
+  let selectedMarket = $state<Market | null>(null)
+  let loading = $state(false)
 
-type Action =
-  | { type: 'SET_MARKETS'; payload: Market[] }
-  | { type: 'SELECT_MARKET'; payload: Market }
-  | { type: 'SET_LOADING'; payload: boolean }
+  async function fetchMarkets() {
+    loading = true
+    try {
+      const res = await fetch('/api/markets')
+      markets = await res.json()
+    } finally {
+      loading = false
+    }
+  }
 
-function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case 'SET_MARKETS':
-      return { ...state, markets: action.payload }
-    case 'SELECT_MARKET':
-      return { ...state, selectedMarket: action.payload }
-    case 'SET_LOADING':
-      return { ...state, loading: action.payload }
-    default:
-      return state
+  function selectMarket(market: Market) {
+    selectedMarket = market
+  }
+
+  return {
+    get markets() { return markets },
+    get selectedMarket() { return selectedMarket },
+    get loading() { return loading },
+    fetchMarkets,
+    selectMarket
   }
 }
 
-const MarketContext = createContext<{
-  state: State
-  dispatch: Dispatch<Action>
-} | undefined>(undefined)
+export const marketStore = createMarketStore()
+```
 
-export function MarketProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, {
-    markets: [],
-    selectedMarket: null,
-    loading: false
+```svelte
+<!-- Usage -->
+<script lang="ts">
+  import { marketStore } from '$lib/stores/markets.svelte'
+  import { onMount } from 'svelte'
+
+  onMount(() => {
+    marketStore.fetchMarkets()
   })
+</script>
 
-  return (
-    <MarketContext.Provider value={{ state, dispatch }}>
-      {children}
-    </MarketContext.Provider>
-  )
-}
+{#if marketStore.loading}
+  <Spinner />
+{:else}
+  {#each marketStore.markets as market (market.id)}
+    <button onclick={() => marketStore.selectMarket(market)}>
+      {market.name}
+    </button>
+  {/each}
+{/if}
+```
 
-export function useMarkets() {
-  const context = useContext(MarketContext)
-  if (!context) throw new Error('useMarkets must be used within MarketProvider')
-  return context
-}
+### URL State with SvelteKit
+
+```svelte
+<!-- +page.svelte -->
+<script lang="ts">
+  import { page } from '$app/stores'
+  import { goto } from '$app/navigation'
+
+  let { data } = $props()
+
+  let query = $derived($page.url.searchParams.get('q') ?? '')
+  let sort = $derived($page.url.searchParams.get('sort') ?? 'newest')
+
+  function updateSearch(q: string) {
+    const url = new URL($page.url)
+    url.searchParams.set('q', q)
+    goto(url, { replaceState: true, noScroll: true })
+  }
+</script>
 ```
 
 ## Performance Optimization
 
-### Memoization
-
-```typescript
-// ✅ useMemo for expensive computations
-const sortedMarkets = useMemo(() => {
-  return markets.sort((a, b) => b.volume - a.volume)
-}, [markets])
-
-// ✅ useCallback for functions passed to children
-const handleSearch = useCallback((query: string) => {
-  setSearchQuery(query)
-}, [])
-
-// ✅ React.memo for pure components
-export const MarketCard = React.memo<MarketCardProps>(({ market }) => {
-  return (
-    <div className="market-card">
-      <h3>{market.name}</h3>
-      <p>{market.description}</p>
-    </div>
-  )
-})
-```
-
-### Code Splitting & Lazy Loading
-
-```typescript
-import { lazy, Suspense } from 'react'
-
-// ✅ Lazy load heavy components
-const HeavyChart = lazy(() => import('./HeavyChart'))
-const ThreeJsBackground = lazy(() => import('./ThreeJsBackground'))
-
-export function Dashboard() {
-  return (
-    <div>
-      <Suspense fallback={<ChartSkeleton />}>
-        <HeavyChart data={data} />
-      </Suspense>
-
-      <Suspense fallback={null}>
-        <ThreeJsBackground />
-      </Suspense>
-    </div>
-  )
-}
-```
-
 ### Virtualization for Long Lists
 
-```typescript
-import { useVirtualizer } from '@tanstack/react-virtual'
+```svelte
+<script lang="ts">
+  import { VirtualList } from '@sveltejs/svelte-virtual-list'
 
-export function VirtualMarketList({ markets }: { markets: Market[] }) {
-  const parentRef = useRef<HTMLDivElement>(null)
+  interface Props {
+    markets: Market[]
+  }
 
-  const virtualizer = useVirtualizer({
-    count: markets.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 100,  // Estimated row height
-    overscan: 5  // Extra items to render
+  let { markets }: Props = $props()
+</script>
+
+<VirtualList items={markets} height={600} itemHeight={100} let:item>
+  <div class="border-b p-4">
+    <h3>{item.name}</h3>
+    <p>{item.description}</p>
+  </div>
+</VirtualList>
+```
+
+### Lazy Loading Components
+
+```svelte
+<script lang="ts">
+  import { onMount } from 'svelte'
+
+  let HeavyChart: typeof import('./HeavyChart.svelte').default | null = $state(null)
+  let visible = $state(false)
+
+  onMount(async () => {
+    if (visible) {
+      const mod = await import('./HeavyChart.svelte')
+      HeavyChart = mod.default
+    }
+  })
+</script>
+
+<div bind:this={container} use:inview on:inview={() => visible = true}>
+  {#if HeavyChart}
+    <HeavyChart {data} />
+  {:else}
+    <div class="h-64 animate-pulse rounded-lg bg-gray-200" />
+  {/if}
+</div>
+```
+
+### Debounced Search
+
+```svelte
+<script lang="ts">
+  let searchQuery = $state('')
+  let debouncedQuery = $state('')
+  let timer: ReturnType<typeof setTimeout>
+
+  $effect(() => {
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      debouncedQuery = searchQuery
+    }, 300)
+    return () => clearTimeout(timer)
   })
 
-  return (
-    <div ref={parentRef} style={{ height: '600px', overflow: 'auto' }}>
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          position: 'relative'
-        }}
-      >
-        {virtualizer.getVirtualItems().map(virtualRow => (
-          <div
-            key={virtualRow.index}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: `${virtualRow.size}px`,
-              transform: `translateY(${virtualRow.start}px)`
-            }}
-          >
-            <MarketCard market={markets[virtualRow.index]} />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+  $effect(() => {
+    if (debouncedQuery) {
+      performSearch(debouncedQuery)
+    }
+  })
+</script>
+
+<input
+  type="text"
+  bind:value={searchQuery}
+  placeholder="Search markets..."
+  class="w-full rounded-lg border px-4 py-2 focus:ring-2 focus:ring-brand"
+/>
 ```
 
 ## Form Handling Patterns
 
-### Controlled Form with Validation
+### Form with Validation
 
-```typescript
-interface FormData {
-  name: string
-  description: string
-  endDate: string
-}
+```svelte
+<script lang="ts">
+  import { enhance } from '$app/forms'
 
-interface FormErrors {
-  name?: string
-  description?: string
-  endDate?: string
-}
+  let name = $state('')
+  let description = $state('')
+  let endDate = $state('')
 
-export function CreateMarketForm() {
-  const [formData, setFormData] = useState<FormData>({
-    name: '',
-    description: '',
-    endDate: ''
-  })
+  let errors = $state<Record<string, string>>({})
 
-  const [errors, setErrors] = useState<FormErrors>({})
-
-  const validate = (): boolean => {
-    const newErrors: FormErrors = {}
-
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required'
-    } else if (formData.name.length > 200) {
-      newErrors.name = 'Name must be under 200 characters'
-    }
-
-    if (!formData.description.trim()) {
-      newErrors.description = 'Description is required'
-    }
-
-    if (!formData.endDate) {
-      newErrors.endDate = 'End date is required'
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+  function validate(): boolean {
+    errors = {}
+    if (!name.trim()) errors.name = 'Name is required'
+    else if (name.length > 200) errors.name = 'Name must be under 200 characters'
+    if (!description.trim()) errors.description = 'Description is required'
+    if (!endDate) errors.endDate = 'End date is required'
+    return Object.keys(errors).length === 0
   }
+</script>
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!validate()) return
-
-    try {
-      await createMarket(formData)
-      // Success handling
-    } catch (error) {
-      // Error handling
+<form
+  method="POST"
+  action="?/create"
+  use:enhance={() => {
+    if (!validate()) return ({ cancel }) => cancel()
+    return async ({ result, update }) => {
+      if (result.type === 'success') await update()
     }
-  }
+  }}
+>
+  <div>
+    <input bind:value={name} name="name" placeholder="Market name"
+      class="w-full rounded-lg border px-4 py-2"
+      class:border-red-500={errors.name}
+    />
+    {#if errors.name}
+      <span class="text-sm text-red-500">{errors.name}</span>
+    {/if}
+  </div>
 
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        value={formData.name}
-        onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-        placeholder="Market name"
-      />
-      {errors.name && <span className="error">{errors.name}</span>}
-
-      {/* Other fields */}
-
-      <button type="submit">Create Market</button>
-    </form>
-  )
-}
+  <button type="submit" class="mt-4 rounded-lg bg-brand px-6 py-2 text-white">
+    Create Market
+  </button>
+</form>
 ```
 
-## Error Boundary Pattern
+### SvelteKit Form Actions
 
 ```typescript
-interface ErrorBoundaryState {
-  hasError: boolean
-  error: Error | null
-}
+// +page.server.ts
+import { fail } from '@sveltejs/kit'
+import type { Actions } from './$types'
 
-export class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  ErrorBoundaryState
-> {
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null
-  }
+export const actions = {
+  create: async ({ request }) => {
+    const data = await request.formData()
+    const name = data.get('name') as string
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error }
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error boundary caught:', error, errorInfo)
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="error-fallback">
-          <h2>Something went wrong</h2>
-          <p>{this.state.error?.message}</p>
-          <button onClick={() => this.setState({ hasError: false })}>
-            Try again
-          </button>
-        </div>
-      )
+    if (!name?.trim()) {
+      return fail(400, { name, error: 'Name is required' })
     }
 
-    return this.props.children
+    await db.market.create({ data: { name } })
+    return { success: true }
   }
-}
+} satisfies Actions
+```
 
-// Usage
-<ErrorBoundary>
-  <App />
-</ErrorBoundary>
+## Error Handling
+
+### Error Boundary with SvelteKit
+
+```svelte
+<!-- +error.svelte -->
+<script lang="ts">
+  import { page } from '$app/stores'
+</script>
+
+<div class="flex min-h-screen items-center justify-center">
+  <div class="text-center">
+    <h1 class="text-4xl font-bold text-gray-900">{$page.status}</h1>
+    <p class="mt-2 text-gray-600">{$page.error?.message}</p>
+    <a href="/" class="mt-4 inline-block text-brand hover:underline">
+      Go home
+    </a>
+  </div>
+</div>
 ```
 
 ## Animation Patterns
 
-### Framer Motion Animations
+### Svelte Transitions
 
-```typescript
-import { motion, AnimatePresence } from 'framer-motion'
+```svelte
+<script lang="ts">
+  import { fade, fly, slide } from 'svelte/transition'
+  import { flip } from 'svelte/animate'
 
-// ✅ List animations
-export function AnimatedMarketList({ markets }: { markets: Market[] }) {
-  return (
-    <AnimatePresence>
-      {markets.map(market => (
-        <motion.div
-          key={market.id}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.3 }}
-        >
-          <MarketCard market={market} />
-        </motion.div>
-      ))}
-    </AnimatePresence>
-  )
-}
+  let markets = $state<Market[]>([])
+</script>
 
-// ✅ Modal animations
-export function Modal({ isOpen, onClose, children }: ModalProps) {
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            className="modal-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            className="modal-content"
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          >
-            {children}
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  )
-}
+<!-- List with animations -->
+{#each markets as market (market.id)}
+  <div
+    in:fly={{ y: 20, duration: 300 }}
+    out:fade={{ duration: 200 }}
+    animate:flip={{ duration: 300 }}
+    class="rounded-lg border p-4"
+  >
+    {market.name}
+  </div>
+{/each}
+
+<!-- Modal -->
+{#if isOpen}
+  <div transition:fade={{ duration: 200 }} class="fixed inset-0 bg-black/50"
+    onclick={close}
+  />
+  <div
+    transition:fly={{ y: 20, duration: 300 }}
+    class="fixed inset-x-4 top-1/4 mx-auto max-w-lg rounded-xl bg-white p-6 shadow-xl"
+  >
+    <slot />
+  </div>
+{/if}
 ```
 
 ## Accessibility Patterns
 
 ### Keyboard Navigation
 
-```typescript
-export function Dropdown({ options, onSelect }: DropdownProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
+```svelte
+<script lang="ts">
+  interface Props {
+    options: string[]
+    onselect: (option: string) => void
+  }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  let { options, onselect }: Props = $props()
+  let isOpen = $state(false)
+  let activeIndex = $state(0)
+
+  function handleKeydown(e: KeyboardEvent) {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
-        setActiveIndex(i => Math.min(i + 1, options.length - 1))
+        activeIndex = Math.min(activeIndex + 1, options.length - 1)
         break
       case 'ArrowUp':
         e.preventDefault()
-        setActiveIndex(i => Math.max(i - 1, 0))
+        activeIndex = Math.max(activeIndex - 1, 0)
         break
       case 'Enter':
         e.preventDefault()
-        onSelect(options[activeIndex])
-        setIsOpen(false)
+        onselect(options[activeIndex])
+        isOpen = false
         break
       case 'Escape':
-        setIsOpen(false)
+        isOpen = false
         break
     }
   }
+</script>
 
-  return (
-    <div
-      role="combobox"
-      aria-expanded={isOpen}
-      aria-haspopup="listbox"
-      onKeyDown={handleKeyDown}
-    >
-      {/* Dropdown implementation */}
-    </div>
-  )
-}
+<div
+  role="combobox"
+  aria-expanded={isOpen}
+  aria-haspopup="listbox"
+  onkeydown={handleKeydown}
+>
+  <!-- Dropdown implementation -->
+</div>
 ```
 
-### Focus Management
-
-```typescript
-export function Modal({ isOpen, onClose, children }: ModalProps) {
-  const modalRef = useRef<HTMLDivElement>(null)
-  const previousFocusRef = useRef<HTMLElement | null>(null)
-
-  useEffect(() => {
-    if (isOpen) {
-      // Save currently focused element
-      previousFocusRef.current = document.activeElement as HTMLElement
-
-      // Focus modal
-      modalRef.current?.focus()
-    } else {
-      // Restore focus when closing
-      previousFocusRef.current?.focus()
-    }
-  }, [isOpen])
-
-  return isOpen ? (
-    <div
-      ref={modalRef}
-      role="dialog"
-      aria-modal="true"
-      tabIndex={-1}
-      onKeyDown={e => e.key === 'Escape' && onClose()}
-    >
-      {children}
-    </div>
-  ) : null
-}
-```
-
-**Remember**: Modern frontend patterns enable maintainable, performant user interfaces. Choose patterns that fit your project complexity.
+**Remember**: Svelte 5 runes replace stores for local state. Use `$state` for reactive values, `$derived` for computed values, and `$effect` for side effects. Tailwind CSS 4 uses CSS-first configuration with `@theme` and `@import "tailwindcss"`.

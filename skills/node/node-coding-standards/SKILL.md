@@ -1,11 +1,11 @@
 ---
 name: coding-standards
-description: Universal coding standards, best practices, and patterns for TypeScript, JavaScript, React, and Node.js development.
+description: Coding standards, best practices, and patterns for TypeScript, Svelte 5, SvelteKit, and Node.js development.
 ---
 
 # Coding Standards & Best Practices
 
-Universal coding standards applicable across all projects.
+Coding standards for Svelte 5, SvelteKit, TypeScript, and Node.js projects.
 
 ## Code Quality Principles
 
@@ -142,87 +142,84 @@ function getMarket(id: any): Promise<any> {
 }
 ```
 
-## React Best Practices
+## Svelte 5 Best Practices
 
 ### Component Structure
 
-```typescript
-// ✅ GOOD: Functional component with types
-interface ButtonProps {
-  children: React.ReactNode
-  onClick: () => void
-  disabled?: boolean
-  variant?: 'primary' | 'secondary'
-}
+```svelte
+<!-- Button.svelte -->
+<script lang="ts">
+  import type { Snippet } from 'svelte'
 
-export function Button({
-  children,
-  onClick,
-  disabled = false,
-  variant = 'primary'
-}: ButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`btn btn-${variant}`}
-    >
-      {children}
-    </button>
-  )
-}
+  // ✅ GOOD: Typed props with $props
+  interface Props {
+    onclick: () => void
+    disabled?: boolean
+    variant?: 'primary' | 'secondary'
+    children: Snippet
+  }
 
-// ❌ BAD: No types, unclear structure
-export function Button(props) {
-  return <button onClick={props.onClick}>{props.children}</button>
-}
+  let { onclick, disabled = false, variant = 'primary', children }: Props = $props()
+</script>
+
+<button {onclick} {disabled} class="btn btn-{variant}">
+  {@render children()}
+</button>
 ```
 
-### Custom Hooks
+### Reactive State with Runes
 
-```typescript
-// ✅ GOOD: Reusable custom hook
-export function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+```svelte
+<script lang="ts">
+  // ✅ GOOD: $state for reactive values
+  let count = $state(0)
+  let doubled = $derived(count * 2)
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value)
-    }, delay)
+  // ✅ GOOD: $effect with cleanup
+  $effect(() => {
+    const timer = setInterval(() => count++, 1000)
+    return () => clearInterval(timer)
+  })
 
-    return () => clearTimeout(handler)
-  }, [value, delay])
-
-  return debouncedValue
-}
-
-// Usage
-const debouncedQuery = useDebounce(searchQuery, 500)
+  // ❌ BAD: Mutating $derived (not allowed)
+  // doubled = 10
+</script>
 ```
 
-### State Management
+### Shared State (.svelte.ts)
 
 ```typescript
-// ✅ GOOD: Proper state updates
-const [count, setCount] = useState(0)
+// ✅ GOOD: Reactive store using runes
+// stores/counter.svelte.ts
+export function createCounter(initial = 0) {
+  let count = $state(initial)
+  let doubled = $derived(count * 2)
 
-// Functional update for state based on previous state
-setCount(prev => prev + 1)
+  return {
+    get count() { return count },
+    get doubled() { return doubled },
+    increment: () => count++,
+    reset: () => count = initial
+  }
+}
 
-// ❌ BAD: Direct state reference
-setCount(count + 1)  // Can be stale in async scenarios
+// ❌ BAD: Exporting $state directly (loses reactivity)
+// export let count = $state(0)
 ```
 
 ### Conditional Rendering
 
-```typescript
-// ✅ GOOD: Clear conditional rendering
-{isLoading && <Spinner />}
-{error && <ErrorMessage error={error} />}
-{data && <DataDisplay data={data} />}
+```svelte
+<!-- ✅ GOOD: Clear conditional blocks -->
+{#if isLoading}
+  <Spinner />
+{:else if error}
+  <ErrorMessage {error} />
+{:else if data}
+  <DataDisplay {data} />
+{/if}
 
-// ❌ BAD: Ternary hell
-{isLoading ? <Spinner /> : error ? <ErrorMessage error={error} /> : data ? <DataDisplay data={data} /> : null}
+<!-- ❌ BAD: Deeply nested ternaries in expressions -->
 ```
 
 ## API Design Standards
@@ -256,15 +253,15 @@ interface ApiResponse<T> {
   }
 }
 
-// Success response
-return NextResponse.json({
+// Success response (SvelteKit)
+return json({
   success: true,
   data: markets,
   meta: { total: 100, page: 1, limit: 10 }
 })
 
-// Error response
-return NextResponse.json({
+// Error response (SvelteKit)
+return json({
   success: false,
   error: 'Invalid request'
 }, { status: 400 })
@@ -283,7 +280,8 @@ const CreateMarketSchema = z.object({
   categories: z.array(z.string()).min(1)
 })
 
-export async function POST(request: Request) {
+// +server.ts (SvelteKit API route)
+export async function POST({ request }: RequestEvent) {
   const body = await request.json()
 
   try {
@@ -291,7 +289,7 @@ export async function POST(request: Request) {
     // Proceed with validated data
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({
+      return json({
         success: false,
         error: 'Validation failed',
         details: error.errors
@@ -307,30 +305,28 @@ export async function POST(request: Request) {
 
 ```
 src/
-├── app/                    # Next.js App Router
-│   ├── api/               # API routes
-│   ├── markets/           # Market pages
-│   └── (auth)/           # Auth pages (route groups)
-├── components/            # React components
-│   ├── ui/               # Generic UI components
-│   ├── forms/            # Form components
-│   └── layouts/          # Layout components
-├── hooks/                # Custom React hooks
-├── lib/                  # Utilities and configs
-│   ├── api/             # API clients
+├── routes/                # SvelteKit file-based routing
+│   ├── api/              # API routes (+server.ts)
+│   ├── markets/          # Market pages (+page.svelte)
+│   └── (auth)/           # Route groups
+├── lib/
+│   ├── components/       # Svelte components
+│   │   ├── ui/          # Generic UI components
+│   │   ├── forms/       # Form components
+│   │   └── layouts/     # Layout components
+│   ├── stores/          # Shared state (.svelte.ts)
 │   ├── utils/           # Helper functions
-│   └── constants/       # Constants
-├── types/                # TypeScript types
-└── styles/              # Global styles
+│   └── types/           # TypeScript types
+└── app.css              # Tailwind CSS 4 config + global styles
 ```
 
 ### File Naming
 
 ```
-components/Button.tsx          # PascalCase for components
-hooks/useAuth.ts              # camelCase with 'use' prefix
-lib/formatDate.ts             # camelCase for utilities
-types/market.types.ts         # camelCase with .types suffix
+lib/components/Button.svelte    # PascalCase for components
+lib/stores/auth.svelte.ts       # camelCase with .svelte.ts for rune stores
+lib/utils/format-date.ts        # kebab-case for utilities
+lib/types/market.ts             # kebab-case for type files
 ```
 
 ## Comments & Documentation
@@ -380,37 +376,44 @@ export async function searchMarkets(
 
 ## Performance Best Practices
 
-### Memoization
+### Derived Values (Svelte 5)
 
-```typescript
-import { useMemo, useCallback } from 'react'
+```svelte
+<script lang="ts">
+  let markets = $state<Market[]>([])
 
-// ✅ GOOD: Memoize expensive computations
-const sortedMarkets = useMemo(() => {
-  return markets.sort((a, b) => b.volume - a.volume)
-}, [markets])
+  // ✅ GOOD: $derived for computed values (auto-memoized)
+  let sortedMarkets = $derived(
+    [...markets].sort((a, b) => b.volume - a.volume)
+  )
 
-// ✅ GOOD: Memoize callbacks
-const handleSearch = useCallback((query: string) => {
-  setSearchQuery(query)
-}, [])
+  // ✅ GOOD: $derived.by for complex derivations
+  let stats = $derived.by(() => {
+    const active = markets.filter(m => m.status === 'active')
+    return { total: markets.length, active: active.length }
+  })
+</script>
 ```
 
 ### Lazy Loading
 
-```typescript
-import { lazy, Suspense } from 'react'
+```svelte
+<script lang="ts">
+  import { onMount } from 'svelte'
 
-// ✅ GOOD: Lazy load heavy components
-const HeavyChart = lazy(() => import('./HeavyChart'))
+  let HeavyChart: any = $state(null)
 
-export function Dashboard() {
-  return (
-    <Suspense fallback={<Spinner />}>
-      <HeavyChart />
-    </Suspense>
-  )
-}
+  onMount(async () => {
+    const mod = await import('./HeavyChart.svelte')
+    HeavyChart = mod.default
+  })
+</script>
+
+{#if HeavyChart}
+  <svelte:component this={HeavyChart} />
+{:else}
+  <Spinner />
+{/if}
 ```
 
 ### Database Queries
