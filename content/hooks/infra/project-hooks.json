@@ -1,0 +1,51 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "tool == \"Bash\" && tool_input.command matches \"(terraform|tofu)[^|;&]*\\\\b(apply|destroy)\\\\b\"",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "#!/bin/bash\nd=$(cat); cmd=$(echo \"$d\" | grep -oP '\"command\"\\s*:\\s*\"\\K[^\"]*'); if [ -n \"$INFRA_MUTATION_OK\" ] || echo \"$cmd\" | grep -q 'INFRA_MUTATION_OK=1'; then exit 0; fi; echo '[Hook] BLOCKED: terraform/tofu apply and destroy are state-mutating commands requiring explicit user confirmation' >&2; echo '[Hook] Run \"terraform plan\" (or \"tofu plan\") first and share the plan output for confirmation' >&2; echo '[Hook] After the user confirms, re-run the command prefixed with INFRA_MUTATION_OK=1' >&2; exit 2"
+          }
+        ]
+      },
+      {
+        "matcher": "tool == \"Bash\" && tool_input.command matches \"kubectl[^|;&]*\\\\b(delete|drain|cordon|uncordon|scale|apply|patch|replace)\\\\b\"",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "#!/bin/bash\nd=$(cat); cmd=$(echo \"$d\" | grep -oP '\"command\"\\s*:\\s*\"\\K[^\"]*'); if [ -n \"$INFRA_MUTATION_OK\" ] || echo \"$cmd\" | grep -q 'INFRA_MUTATION_OK=1'; then exit 0; fi; echo '[Hook] BLOCKED: this kubectl command mutates cluster state and requires explicit user confirmation' >&2; echo '[Hook] Run \"kubectl get\"/\"kubectl describe\"/\"kubectl diff\" first and share the output for confirmation' >&2; echo '[Hook] After the user confirms, re-run the command prefixed with INFRA_MUTATION_OK=1' >&2; exit 2"
+          }
+        ]
+      },
+      {
+        "matcher": "tool == \"Bash\" && tool_input.command matches \"helm[^|;&]*\\\\b(install|upgrade|uninstall|rollback|delete)\\\\b\"",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "#!/bin/bash\nd=$(cat); cmd=$(echo \"$d\" | grep -oP '\"command\"\\s*:\\s*\"\\K[^\"]*'); if [ -n \"$INFRA_MUTATION_OK\" ] || echo \"$cmd\" | grep -q 'INFRA_MUTATION_OK=1'; then exit 0; fi; echo '[Hook] BLOCKED: this helm command mutates release state and requires explicit user confirmation' >&2; echo '[Hook] Run \"helm diff upgrade\" (or \"helm status\") first and share the output for confirmation' >&2; echo '[Hook] After the user confirms, re-run the command prefixed with INFRA_MUTATION_OK=1' >&2; exit 2"
+          }
+        ]
+      },
+      {
+        "matcher": "tool == \"Bash\" && tool_input.command matches \"ansible-playbook\"",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "#!/bin/bash\nd=$(cat); cmd=$(echo \"$d\" | grep -oP '\"command\"\\s*:\\s*\"\\K[^\"]*'); if echo \"$cmd\" | grep -q -- '--check'; then exit 0; fi; if [ -n \"$INFRA_MUTATION_OK\" ] || echo \"$cmd\" | grep -q 'INFRA_MUTATION_OK=1'; then exit 0; fi; echo '[Hook] BLOCKED: ansible-playbook without --check is a state-mutating command requiring explicit user confirmation' >&2; echo '[Hook] Run with \"--check --diff\" first and share the diff output for confirmation' >&2; echo '[Hook] After the user confirms, re-run the command prefixed with INFRA_MUTATION_OK=1' >&2; exit 2"
+          }
+        ]
+      },
+      {
+        "matcher": "tool == \"Bash\" && tool_input.command matches \"(terraform plan|ansible-playbook .*--check|helm diff)\"",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "#!/bin/bash\necho '[Hook] Reminder: capture this plan/diff output into the decision record before proposing the matching mutation' >&2; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
