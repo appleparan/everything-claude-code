@@ -13,6 +13,8 @@ This map records the command surface after the selective upstream port. Paths us
 | `/rust-test` | self-contained command doc | Rust TDD and coverage workflow |
 | `/node-tdd` | `skills/node/node-tdd-workflow/` | Existing Node TDD flow |
 | `/verify` | common verification docs (`commands/common/verify.md`) | Existing verification flow |
+| `/infra-decompose` | self-contained command doc | Validates the user's own decomposition/hypothesis list (gaps, ordering, completion criteria) |
+| `/infra-postmortem` | self-contained command doc | Structured postmortem/decision record with verification status and recurrence prevention |
 
 ## Direct-Use Agents
 
@@ -21,6 +23,7 @@ This map records the command surface after the selective upstream port. Paths us
 | TypeScript reviewer | `agents/typescript/typescript-reviewer.md` | Invoke directly for TypeScript or JavaScript reviews |
 | FastAPI reviewer | `agents/python/fastapi-reviewer.md` | Invoke directly for focused FastAPI applications |
 | Rust reviewer | `agents/rust/rust-reviewer.md` | Invoke directly for Rust reviews |
+| Infra red team | `agents/infra/infra-red-team.md` | Invoke before finalizing an infra design or root-cause conclusion |
 
 ## Refactoring Rule
 
