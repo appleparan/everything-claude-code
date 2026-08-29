@@ -48,7 +48,9 @@ git log --format='%(trailers:key=Change,valueonly)' | sort -u   # all bundles
   - 1–2 files, trivial → Simple (lightweight plan, no plan file).
   - 3+ files / cross-directory / risky → Complex.
 - For Complex work, write `IMPLEMENTATION_PLAN.md` in the worktree root (after
-  step 3) with staged goals, success criteria, tests, and status.
+  step 3) with staged goals, success criteria, tests, and status. It is an
+  uncommitted working file — add it to `.git/info/exclude` in the worktree so
+  staged commits never pick it up.
 - Do NOT write code yet.
 
 ### 2. Create an issue (forge mode) or allocate a change ID (local record mode)
