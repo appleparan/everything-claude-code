@@ -60,7 +60,7 @@ cd everything-claude-code
 `all`) over `targets/claude/install.sh` and `targets/codex/install.sh`, which
 both read from the single `content/` source tree.
 
-Available languages: `common`, `node`, `python`, `rust`, `typescript`.
+Available languages: `common`, `infra`, `node`, `python`, `rust`, `typescript`.
 `common` holds language-agnostic content; you almost always want it plus the
 languages you work in.
 
@@ -198,15 +198,15 @@ everything-claude-code/
 |   |-- instructions/
 |   |   |-- global.md        # Global instructions (-> ~/.claude/CLAUDE.md, folded into ~/.codex/AGENTS.md)
 |   |-- agents/               # Specialized subagents (Claude Code only)
-|   |   |-- common/, node/, python/, rust/, typescript/
+|   |   |-- common/, infra/, node/, python/, rust/, typescript/
 |   |-- skills/                # Workflow definitions (Claude Code + Codex, via $skill-name)
 |   |   |-- common/, node/, python/
 |   |-- commands/              # Slash commands (Claude Code only)
-|   |   |-- common/, node/, python/, rust/
+|   |   |-- common/, infra/, node/, python/, rust/
 |   |-- rules/                 # Always-follow guidelines (Claude Code + Codex)
-|   |   |-- common/, node/, python/, rust/, typescript/
+|   |   |-- common/, infra/, node/, python/, rust/, typescript/
 |   |-- hooks/                 # Trigger-based automations (Claude Code only)
-|   |   |-- common/, node/, python/, rust/
+|   |   |-- common/, infra/, node/, python/, rust/
 |   |-- mcp/
 |       |-- servers.json     # MCP server configs (Claude Code settings + Codex config.toml)
 |
