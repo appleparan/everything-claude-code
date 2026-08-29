@@ -21,9 +21,9 @@ skipped=0
 removed=0
 not_found=0
 
-# Discover available languages from directory structure
+# Discover available languages from directory structure.
+# No associative arrays: macOS ships bash 3.2, which lacks them.
 discover_languages() {
-    local -A seen
     for cat in "${CATEGORIES[@]}" hooks; do
         local cat_dir="${CONTENT_ROOT:-$REPO_ROOT}/${cat}"
         [[ -d "$cat_dir" ]] || continue
@@ -32,10 +32,9 @@ discover_languages() {
             local name
             name=$(basename "$dir")
             [[ "$name" == .* ]] && continue
-            seen["$name"]=1
+            echo "$name"
         done
-    done
-    echo "${!seen[@]}" | tr ' ' '\n' | sort
+    done | sort -u
 }
 
 log_copy() { echo -e "  ${GREEN}COPY${NC}  $1 → $2"; }
@@ -46,6 +45,10 @@ log_info() { echo -e "  ${CYAN}INFO${NC}  $1"; }
 log_warn() { echo -e "  ${RED}WARN${NC}  $1"; }
 log_rm()       { echo -e "  ${RED}RM${NC}    $1"; }
 log_not_found() { echo -e "  ${YELLOW}MISS${NC}  $1 (not installed)"; }
+
+jq_install_hint() {
+    log_warn "Install jq: sudo apt install jq (Debian/Ubuntu), brew install jq (macOS), sudo dnf install jq (Fedora), sudo pacman -S jq (Arch)"
+}
 
 codex_agents_label() {
     if [[ -n "${CODEX_HOME:-}" ]]; then

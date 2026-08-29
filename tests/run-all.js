@@ -23,6 +23,7 @@ const testFiles = [
   'scripts/setup-package-manager.test.js',
   'scripts/skill-create-output.test.js',
   'scripts/install-dispatcher.test.js',
+  'scripts/jq-missing.test.js',
   'scripts/codex-adapter.test.js'
 ];
 
@@ -60,13 +61,21 @@ for (const testFile of testFiles) {
   if (stdout) console.log(stdout);
   if (stderr) console.log(stderr);
 
-  // Parse results from combined output
+  // Parse results from combined output. Test files use one of two summary
+  // formats: "Passed: N" / "Failed: N" or "N passed, M failed".
   const combined = stdout + stderr;
-  const passedMatch = combined.match(/Passed:\s*(\d+)/);
-  const failedMatch = combined.match(/Failed:\s*(\d+)/);
+  const passedMatch = combined.match(/Passed:\s*(\d+)/) || combined.match(/(\d+) passed/);
+  const failedMatch = combined.match(/Failed:\s*(\d+)/) || combined.match(/(\d+) failed/);
 
   if (passedMatch) totalPassed += parseInt(passedMatch[1], 10);
   if (failedMatch) totalFailed += parseInt(failedMatch[1], 10);
+
+  // A test file that exits non-zero without reporting failures (e.g. a crash
+  // before the summary line) must still fail the suite.
+  if (result.status !== 0 && (!failedMatch || parseInt(failedMatch[1], 10) === 0)) {
+    console.error(`✗ ${testFile} exited with status ${result.status}`);
+    totalFailed += 1;
+  }
 }
 
 totalTests = totalPassed + totalFailed;
