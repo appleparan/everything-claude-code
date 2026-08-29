@@ -57,9 +57,9 @@ merge_hooks() {
 
     if $DRY_RUN; then
         for f in "${hooks_files[@]}"; do
-            local rel
-            rel=$(realpath --relative-to="$REPO_ROOT" "$f")
-            log_dry "$rel" "settings.json"
+            # Prefix strip instead of realpath --relative-to (GNU-only;
+            # macOS BSD realpath lacks it). Files are always under REPO_ROOT.
+            log_dry "${f#"$REPO_ROOT"/}" "settings.json"
         done
         return
     fi
@@ -87,7 +87,7 @@ merge_hooks() {
             jq_install_hint
             log_warn "Hooks files to merge:"
             for f in "${hooks_files[@]}"; do
-                log_warn "  - $(realpath --relative-to="$REPO_ROOT" "$f")"
+                log_warn "  - ${f#"$REPO_ROOT"/}"
             done
             skipped=$((skipped + 1))
             return
@@ -97,9 +97,7 @@ merge_hooks() {
     local content
     if [[ ${#hooks_files[@]} -eq 1 ]]; then
         content=$(cat "${hooks_files[0]}")
-        local rel
-        rel=$(realpath --relative-to="$REPO_ROOT" "${hooks_files[0]}")
-        log_copy "$rel" "settings.json"
+        log_copy "${hooks_files[0]#"$REPO_ROOT"/}" "settings.json"
         copied=$((copied + 1))
     else
         # Build jq merge: for each hook event, concatenate arrays

@@ -38,11 +38,20 @@ function makeJqlessBin() {
 
 const jqlessBin = makeJqlessBin();
 
+// Directory holding the real jq — on macOS it lives under the homebrew
+// prefix, not /usr/bin, so the with-jq PATH must include it explicitly.
+function findJqDir() {
+  const res = spawnSync('sh', ['-c', 'command -v jq'], { encoding: 'utf8' });
+  const jqPath = (res.stdout || '').trim();
+  return jqPath ? path.dirname(jqPath) : null;
+}
+const jqDir = findJqDir();
+
 function runInstall(args, { home, jqless }) {
   const env = {
     ...process.env,
     HOME: home,
-    PATH: jqless ? jqlessBin : '/usr/bin:/bin'
+    PATH: jqless ? jqlessBin : ['/usr/bin', '/bin', jqDir].filter(Boolean).join(':')
   };
   return spawnSync('bash', [claudeInstall, ...args], { env, encoding: 'utf8' });
 }
