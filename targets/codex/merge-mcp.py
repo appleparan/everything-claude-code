@@ -25,6 +25,7 @@ def main() -> int:
     parser.add_argument('--servers', required=True, type=Path)
     parser.add_argument('--force', action='store_true')
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--languages', nargs='*', default=[])
     args = parser.parse_args()
 
     try:
@@ -46,8 +47,16 @@ def main() -> int:
         doc['mcp_servers'] = tomlkit.table(True)
     table = doc['mcp_servers']
 
+    requested_languages = set(args.languages)
     added = []
     for name, spec in servers.items():
+        server_languages = spec.get('languages')
+        if requested_languages and server_languages and not (
+            requested_languages & set(server_languages)
+        ):
+            wanted = ' '.join(sorted(requested_languages))
+            print(f'SKIP mcp_servers.{name} (not needed for: {wanted})')
+            continue
         if name in table and not args.force:
             print(f'SKIP mcp_servers.{name} (exists; use --force to overwrite)')
             continue

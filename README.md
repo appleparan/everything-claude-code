@@ -155,7 +155,7 @@ detected) installs into `$CODEX_HOME` or `~/.codex`:
 | `content/instructions/global.md` + rules index | `~/.codex/AGENTS.md` (generated) |
 | `content/rules/**` | `~/.codex/instructions/*.md` (flat, one file per rule) |
 | `content/skills/**` | `~/.codex/skills/<name>/` (invoked via `$skill-name`, e.g. `$git-commit-msg`) |
-| `content/mcp/servers.json` | `[mcp_servers.*]` merged into `~/.codex/config.toml`, with a timestamped backup of the existing file. Requires `uv`; if it's missing, the MCP step is skipped with a warning and the entries can be added manually. |
+| `content/mcp/servers.json` | `[mcp_servers.*]` merged into `~/.codex/config.toml`, with a timestamped backup of the existing file. Only servers tagged with a matching `languages` entry (plus untagged/common servers) are merged for the languages being installed. Requires `uv`; if it's missing, the MCP step is skipped with a warning and the entries can be added manually. |
 
 Codex has no subagent or slash-command concept, so `content/agents/` and
 `content/commands/` are not installed there. `content/hooks/` targets Claude
