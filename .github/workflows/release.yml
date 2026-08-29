@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -27,22 +27,20 @@ jobs:
           fi
 
       - name: Generate changelog
-        id: changelog
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -z "$PREV_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s" HEAD)
-          else
-            COMMITS=$(git log --pretty=format:"- %s" ${PREV_TAG}..HEAD)
-          fi
-          echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          {
+            echo "## Changes"
+            if [ -z "$PREV_TAG" ]; then
+              git log --pretty=format:"- %s" HEAD
+            else
+              git log --pretty=format:"- %s" "${PREV_TAG}..HEAD"
+            fi
+          } > "$RUNNER_TEMP/release-notes.md"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          body: |
-            ## Changes
-            ${{ steps.changelog.outputs.commits }}
-          generate_release_notes: false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
