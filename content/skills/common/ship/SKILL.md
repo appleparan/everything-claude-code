@@ -129,12 +129,17 @@ git push -u origin "$BRANCH"
 gh pr create --head "$BRANCH" --fill --body "Closes #$ISSUE
 
 ## Summary
-...
+<!-- 2-5 line TL;DR: what changed and why it matters, readable in 10s -->
+## Why / approach
+<!-- key decisions and trade-offs; don't restate the diff -->
 ## Test plan
 - [ ] ..."
 ```
 
-- Use `git diff main...HEAD` to draft a complete summary across all commits.
+- Use `git diff main...HEAD` to draft the summary across all commits.
+- Write conclusion-first (TL;DR → why → evidence) per the
+  `writing-reports` rule; keep it readable in about a minute and put
+  bulky detail behind a `<details>` block.
 - Link the issue with `Closes #$ISSUE`.
 
 Local record mode:
@@ -148,10 +153,10 @@ Local record mode:
 **Date**: YYYY-MM-DD
 **Branch**: <type>/<short-description>
 
+## TL;DR
 ## Problem
-## Approach
+## Approach & key decisions
 ## Test plan & results
-## Key decisions
 ```
 
 - After the user confirms, merge following the repository's policy — rebase or

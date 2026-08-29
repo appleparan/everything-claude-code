@@ -53,6 +53,18 @@ the user make the final call. Never state unverified external facts
 them "needs verification" and back service specs and limits with
 official documentation links.
 
+## Reports & Documents
+
+Write every report for a human reader — PR/MR descriptions, design
+docs, debugging reports, change records — conclusion first: a 2–5
+line TL;DR at the top, then the reasoning and key decisions, then the
+supporting evidence (logs, numbers, links) last. A reader who stops
+after the TL;DR must still get the correct conclusion. A report too
+long to read will not be read: cut anything that doesn't change the
+reader's decision, avoid filler adjectives, and put bulky detail
+behind a `<details>` block or a link. Full guidance lives in the
+`writing-reports` rule.
+
 ## Quality Gate
 
 Use the project's own lint/format/type-check/test commands and run
