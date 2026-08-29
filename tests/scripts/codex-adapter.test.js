@@ -100,6 +100,50 @@ if (!hasUv) {
     const backups = fs.readdirSync(dir).filter((f) => f.includes('.bak.'));
     assert.strictEqual(backups.length, 0, 'fresh + no-op runs must not create a backup');
   });
+
+  test('merge-mcp --languages node merges chrome-devtools', () => {
+    const { res, config } = runMerge(null, ['--languages', 'node']);
+    assert.strictEqual(res.status, 0, res.stderr);
+    const out = fs.readFileSync(config, 'utf8');
+    assert.ok(out.includes('[mcp_servers.chrome-devtools]'),
+      'chrome-devtools should be merged when node is requested');
+  });
+
+  test('merge-mcp --languages python skips chrome-devtools', () => {
+    const { res, config } = runMerge(null, ['--languages', 'python']);
+    assert.strictEqual(res.status, 0, res.stderr);
+    assert.ok(res.stdout.includes('SKIP mcp_servers.chrome-devtools'),
+      'expected a SKIP line for chrome-devtools');
+    const out = fs.existsSync(config) ? fs.readFileSync(config, 'utf8') : '';
+    assert.ok(!out.includes('[mcp_servers.chrome-devtools]'),
+      'chrome-devtools must not be merged when only python is requested');
+  });
+
+  test('merge-mcp always merges servers with no languages field', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-mcp-'));
+    const config = path.join(dir, 'config.toml');
+    const servers = path.join(dir, 'servers.json');
+    fs.writeFileSync(servers, JSON.stringify({
+      mcpServers: {
+        'common-tool': { command: 'common-cmd' },
+        'node-tool': { command: 'node-cmd', languages: ['node'] }
+      }
+    }));
+    const res = spawnSync(
+      'uv',
+      ['run', '--with', 'tomlkit', 'python3', mergeMcp,
+        '--config', config, '--servers', servers, '--languages', 'python'],
+      { encoding: 'utf8' }
+    );
+    assert.strictEqual(res.status, 0, res.stderr);
+    const out = fs.readFileSync(config, 'utf8');
+    assert.ok(out.includes('[mcp_servers.common-tool]'),
+      'a server without a languages field must always be merged');
+    assert.ok(!out.includes('[mcp_servers.node-tool]'),
+      'node-tagged server must be skipped when only python is requested');
+    assert.ok(res.stdout.includes('SKIP mcp_servers.node-tool'),
+      'expected a SKIP line for node-tool');
+  });
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

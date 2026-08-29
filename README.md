@@ -155,7 +155,17 @@ detected) installs into `$CODEX_HOME` or `~/.codex`:
 | `content/instructions/global.md` + rules index | `~/.codex/AGENTS.md` (generated) |
 | `content/rules/**` | `~/.codex/instructions/*.md` (flat, one file per rule) |
 | `content/skills/**` | `~/.codex/skills/<name>/` (invoked via `$skill-name`, e.g. `$git-commit-msg`) |
-| `content/mcp/servers.json` | `[mcp_servers.*]` merged into `~/.codex/config.toml`, with a timestamped backup of the existing file. Requires `uv`; if it's missing, the MCP step is skipped with a warning and the entries can be added manually. |
+| `content/mcp/servers.json` | `[mcp_servers.*]` merged into `~/.codex/config.toml`, with a timestamped backup of the existing file. Only servers tagged with a matching `languages` entry (plus untagged/common servers) are merged for the languages being installed. Requires `uv`; if it's missing, the MCP step is skipped with a warning and the entries can be added manually. |
+
+MCP servers are installed only when needed: each entry in
+`content/mcp/servers.json` may carry a `languages` tag, and only servers
+matching the languages you install (plus untagged/common servers) are merged.
+For example, `./scripts/install.sh --target codex node` merges
+`chrome-devtools` (tagged `node`), while `--target codex python` skips it.
+To add a server later, re-run the install with the language that needs it.
+For Claude Code, MCP servers are never auto-installed — copy the entries you
+need from `content/mcp/servers.json` into the `mcpServers` section of
+`~/.claude.json` yourself.
 
 Codex has no subagent or slash-command concept, so `content/agents/` and
 `content/commands/` are not installed there. `content/hooks/` targets Claude
@@ -208,7 +218,7 @@ everything-claude-code/
 |   |-- hooks/                 # Trigger-based automations (Claude Code only)
 |   |   |-- common/, infra/, node/, python/, rust/
 |   |-- mcp/
-|       |-- servers.json     # MCP server configs (Claude Code settings + Codex config.toml)
+|       |-- servers.json     # MCP server catalog, tagged per language (manual copy for Claude Code, filtered merge into Codex config.toml)
 |
 |-- targets/           # Per-target adapters - mapping/transform only, no content
 |   |-- claude/

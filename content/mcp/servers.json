@@ -3,12 +3,14 @@
     "chrome-devtools": {
       "command": "npx",
       "args": ["-y", "@anthropic-ai/chrome-devtools-mcp@latest"],
-      "description": "Chrome DevTools - page inspection, performance tracing, network monitoring"
+      "description": "Chrome DevTools - page inspection, performance tracing, network monitoring",
+      "languages": ["node"]
     }
   },
   "_comments": {
     "usage": "Copy the servers you need to your ~/.claude.json mcpServers section",
     "disabling": "Use disabledMcpServers array in project config to disable per-project",
-    "context_warning": "Keep under 10 MCPs enabled to preserve context window"
+    "context_warning": "Keep under 10 MCPs enabled to preserve context window",
+    "languages": "Optional list of language domains a server belongs to (e.g. [\"node\"]). A server without a languages field is treated as common and is installed for every language selection; one with a languages field is installed only when its list intersects the languages being installed."
   }
 }

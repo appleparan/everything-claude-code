@@ -121,6 +121,7 @@ echo ""
 echo -e "${CYAN}[mcp]${NC}"
 if command -v uv &>/dev/null; then
     merge_args=(--config "${CODEX_DIR}/config.toml" --servers "${CONTENT_ROOT}/mcp/servers.json")
+    merge_args+=(--languages "${LANGUAGES[@]}")
     $FORCE && merge_args+=(--force)
     $DRY_RUN && merge_args+=(--dry-run)
     uv run --with tomlkit python3 "${SCRIPT_DIR}/merge-mcp.py" "${merge_args[@]}" \
