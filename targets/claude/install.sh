@@ -6,6 +6,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # shellcheck source=../../scripts/lib/common.sh
 source "${REPO_ROOT}/scripts/lib/common.sh"
+# shellcheck source=../../scripts/lib/prune.sh
+source "${REPO_ROOT}/scripts/lib/prune.sh"
+PRUNE_TARGET="claude"
 
 usage() {
     local available
@@ -29,6 +32,8 @@ Categories installed:
 Options:
   -f    Force overwrite existing files
   -n    Dry run (show what would be copied without copying)
+  -p    Prune orphaned files from previous installs (see .ecc-manifest);
+        with no manifest yet, falls back to a git-history check
   -l    List available languages and exit
   -h    Show this help
 
@@ -126,11 +131,13 @@ merge_hooks() {
 # Parse options
 FORCE=false
 DRY_RUN=false
+PRUNE=false
 
-while getopts "fnlh" opt; do
+while getopts "fnplh" opt; do
     case $opt in
         f) FORCE=true ;;
         n) DRY_RUN=true ;;
+        p) PRUNE=true ;;
         l)
             echo "Available languages:"
             discover_languages | while read -r lang; do
@@ -213,6 +220,7 @@ for category in "${CATEGORIES[@]}"; do
 
                 copy_dir "$skill_dir" "${dest_dir}/${local_name}" \
                     "content/${category}/${lang}/${local_name}/" "${category}/${local_name}/"
+                manifest_add "$lang" "${category}/${local_name}"
             done
         else
             # Agents, commands, rules: flat .md files
@@ -227,6 +235,7 @@ for category in "${CATEGORIES[@]}"; do
 
                 copy_file "$file" "${dest_dir}/${filename}" \
                     "content/${category}/${lang}/${filename}" "${category}/${filename}"
+                manifest_add "$lang" "${category}/${filename}"
             done
         fi
     done
@@ -259,6 +268,7 @@ for lang in "${LANGUAGES[@]}"; do
 
         copy_file "$script" "${dest_scripts}/${filename}" \
             "scripts/${lang}/hooks/${filename}" "scripts/${lang}/hooks/${filename}"
+        manifest_add "$lang" "scripts/${lang}/hooks/${filename}"
     done
 done
 
@@ -288,6 +298,7 @@ for lang in "${LANGUAGES[@]}"; do
 
         copy_file "$lib_file" "${dest_lib}/${filename}" \
             "scripts/${lang}/lib/${filename}" "scripts/${lang}/lib/${filename}"
+        manifest_add "$lang" "scripts/${lang}/lib/${filename}"
     done
 done
 
@@ -309,7 +320,11 @@ for lang in "${LANGUAGES[@]}"; do
         hooks_to_merge+=("$global_hooks_file")
     fi
 done
-merge_hooks "${hooks_to_merge[@]}"
+# bash 3.2 + set -u treats expanding an EMPTY array with "${arr[@]}" as an
+# unbound variable (fixed in 4.4), so the call must be guarded by length.
+if [[ ${#hooks_to_merge[@]} -gt 0 ]]; then
+    merge_hooks "${hooks_to_merge[@]}"
+fi
 
 # Smoke test: every script path referenced by hook commands in settings.json
 # must exist, otherwise those hooks are silent no-ops at runtime.
@@ -351,11 +366,20 @@ for lang in "${LANGUAGES[@]}"; do
 
     copy_file_subst "$project_hooks_file" "${dest_project_hooks}/${lang}.json" \
         "content/hooks/${lang}/project-hooks.json" "project-hooks/${lang}.json"
+    manifest_add "$lang" "project-hooks/${lang}.json"
 done
 
 if $has_project_hooks; then
     echo ""
 fi
+
+# Orphan pruning + manifest write. run_prune lists/deletes based on the old
+# manifest (or falls back to git history when no manifest exists yet and -p
+# was given); manifest_write always seeds/refreshes the manifest for next
+# time, except on dry-run where it is a no-op.
+LANGS_NL=$(printf '%s\n' "${LANGUAGES[@]}")
+run_prune "$CLAUDE_DIR" "$LANGS_NL" "$PRUNE"
+manifest_write "$CLAUDE_DIR" "$LANGS_NL"
 
 # Summary
 echo ""
