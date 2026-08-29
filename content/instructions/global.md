@@ -28,7 +28,8 @@ of guessing.
 - Commit at the end of every meaningful stage, not all at once at the
   end.
 - **Get explicit user confirmation before creating a PR/MR** (GitHub:
-  `gh`, GitLab: `glab`).
+  `gh`, GitLab: `glab`). When no forge is available, the same rule
+  applies to merging the branch into main.
 
 ## Planning
 
@@ -37,8 +38,11 @@ code, and the risks; prefer the simplest approach that works. For
 non-trivial work, write the plan to `IMPLEMENTATION_PLAN.md` in the
 worktree root and keep its status current; before removing it, record
 a summary (stages, key decisions, verification results) in the issue
-or PR. The `ship` skill covers the full plan → issue → worktree →
-TDD → PR flow.
+or PR — or, when no forge is available, in the change's
+`docs/changes/` record. The `ship` skill covers the full plan →
+issue → worktree → TDD → PR flow, including the local record
+fallback (`Change:` commit trailers + `docs/changes/` documents)
+used when `gh`/`glab` are unavailable.
 
 ## Design Decisions
 
