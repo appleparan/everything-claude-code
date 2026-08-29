@@ -30,6 +30,14 @@ user input handling, database queries, file system operations,
 external API calls, cryptography, or payments. Language-specific
 reviewers exist for TypeScript, Python, Go, and Rust.
 
+When the Codex CLI and the openai-codex plugin are installed, the
+`/code-review` command also runs a Codex review in parallel and merges
+both result sets into one severity-ordered report, tagging each
+finding with its source (`[Claude]`, `[Codex]`, `[Both]`). Blocking
+rules apply equally to findings from either reviewer. Without Codex,
+`/code-review` falls back to the Claude-only review. For manual Codex
+reviews, use `/codex:review` or `/codex:adversarial-review`.
+
 Detailed checklists live with the tools that apply them: the
 code-review command, the security-review skill,
 [security.md](security.md) for the pre-commit security list, and
