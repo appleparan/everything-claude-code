@@ -44,6 +44,9 @@ log_dry()  { echo -e "  ${CYAN}DRY${NC}   $1 → $2"; }
 log_dry_rm() { echo -e "  ${CYAN}DRY${NC}   $1"; }
 log_info() { echo -e "  ${CYAN}INFO${NC}  $1"; }
 log_warn() { echo -e "  ${RED}WARN${NC}  $1"; }
+jq_install_hint() {
+    log_warn "Install jq: sudo apt install jq (Debian/Ubuntu), brew install jq (macOS), sudo dnf install jq (Fedora), sudo pacman -S jq (Arch)"
+}
 log_rm()       { echo -e "  ${RED}RM${NC}    $1"; }
 log_not_found() { echo -e "  ${YELLOW}MISS${NC}  $1 (not installed)"; }
 

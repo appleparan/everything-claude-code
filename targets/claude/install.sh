@@ -70,6 +70,29 @@ merge_hooks() {
         return
     fi
 
+    # jq is required both to merge multiple hooks files and to update the
+    # hooks key of an existing settings.json without losing its other keys
+    # (enabledPlugins, permissions, model, tui, ...). Without jq, skip
+    # rather than destroy data.
+    if ! command -v jq &>/dev/null; then
+        if [[ -f "$dest" ]]; then
+            log_warn "jq not found: cannot update hooks in existing settings.json without losing its other keys. Skipping hooks."
+            jq_install_hint
+            skipped=$((skipped + 1))
+            return
+        fi
+        if [[ ${#hooks_files[@]} -gt 1 ]]; then
+            log_warn "jq not found. Cannot merge multiple hooks files."
+            log_warn "Install jq or specify only one language with hooks."
+            jq_install_hint
+            log_warn "Hooks files to merge:"
+            for f in "${hooks_files[@]}"; do
+                log_warn "  - $(realpath --relative-to="$REPO_ROOT" "$f")"
+            done
+            return
+        fi
+    fi
+
     local content
     if [[ ${#hooks_files[@]} -eq 1 ]]; then
         content=$(cat "${hooks_files[0]}")
@@ -78,17 +101,6 @@ merge_hooks() {
         log_copy "$rel" "settings.json"
         copied=$((copied + 1))
     else
-        # Multiple hooks files: merge with jq
-        if ! command -v jq &>/dev/null; then
-            log_warn "jq not found. Cannot merge multiple hooks files."
-            log_warn "Install jq or specify only one language with hooks."
-            log_warn "Hooks files to merge:"
-            for f in "${hooks_files[@]}"; do
-                log_warn "  - $(realpath --relative-to="$REPO_ROOT" "$f")"
-            done
-            return
-        fi
-
         # Build jq merge: for each hook event, concatenate arrays
         content=$(jq -s "$JQ_MERGE_HOOKS" "${hooks_files[@]}")
 
@@ -101,13 +113,12 @@ merge_hooks() {
 
     # settings.json holds more than hooks (enabledPlugins, permissions, model,
     # tui, ...). When overwriting an existing file, replace only the hooks key
-    # (and $schema) and preserve everything else.
-    if [[ -f "$dest" ]] && command -v jq &>/dev/null; then
+    # (and $schema) and preserve everything else. jq is guaranteed here: the
+    # jq-less + existing-dest case returned above.
+    if [[ -f "$dest" ]]; then
         content=$(jq -s '.[0] * {hooks: .[1].hooks}
             * (if .[1]."$schema" != null then {"$schema": .[1]."$schema"} else {} end)' \
             "$dest" <(echo "$content"))
-    elif [[ -f "$dest" ]]; then
-        log_warn "jq not found: overwriting settings.json wholesale (non-hook keys will be lost)"
     fi
 
     echo "$content" > "$dest"

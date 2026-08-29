@@ -145,7 +145,8 @@ else
     # Multiple languages: merge with jq
     if ! command -v jq &>/dev/null; then
         echo -e "${RED}Error: jq is required to merge multiple hook templates${NC}"
-        echo -e "Install jq or specify only one language."
+        echo -e "Install jq: sudo apt install jq (Debian/Ubuntu), brew install jq (macOS), sudo dnf install jq (Fedora), sudo pacman -S jq (Arch)"
+        echo -e "Or specify only one language."
         exit 1
     fi
 

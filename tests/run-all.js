@@ -23,6 +23,7 @@ const testFiles = [
   'scripts/setup-package-manager.test.js',
   'scripts/skill-create-output.test.js',
   'scripts/install-dispatcher.test.js',
+  'scripts/jq-missing.test.js',
   'scripts/codex-adapter.test.js'
 ];
 
