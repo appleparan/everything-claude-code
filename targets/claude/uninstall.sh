@@ -24,6 +24,8 @@ Categories removed:
   commands/  Slash commands (.md)
   rules/     Rules and guidelines (.md)
   hooks/     Global hooks (settings.json) and project hook templates
+  plugins/   Tracked plugin entries (enabledPlugins + extraKnownMarketplaces
+             in settings.json)
 
 Options:
   -n    Dry run (show what would be removed without removing)
@@ -228,6 +230,33 @@ if $has_hooks; then
         removed=$((removed + 1))
     else
         log_info "jq not found: leaving settings.json untouched — remove the hooks key manually"
+    fi
+    echo ""
+fi
+
+# Remove tracked plugins from settings.json. Only the enabledPlugins /
+# extraKnownMarketplaces entries listed in content/plugins/plugins.json are
+# removed; anything the user added on top survives. Keys left empty by the
+# removal are dropped entirely so settings.json is not polluted with {}.
+JQ_REMOVE_PLUGINS='.[1] as $plugins | .[0] | .enabledPlugins = ((.enabledPlugins // {}) | with_entries(select($plugins.enabledPlugins[.key] == null))) | .extraKnownMarketplaces = ((.extraKnownMarketplaces // {}) | with_entries(select($plugins.extraKnownMarketplaces[.key] == null))) | if .enabledPlugins == {} then del(.enabledPlugins) else . end | if .extraKnownMarketplaces == {} then del(.extraKnownMarketplaces) else . end'
+
+plugins_src="${CONTENT_ROOT}/plugins/plugins.json"
+if [[ -f "$plugins_src" ]]; then
+    echo -e "${CYAN}[plugins]${NC}"
+    settings_file="${CLAUDE_DIR}/settings.json"
+    if [[ ! -f "$settings_file" ]]; then
+        log_not_found "settings.json"
+        not_found=$((not_found + 1))
+    elif $DRY_RUN; then
+        log_dry_rm "settings.json (tracked plugin entries only)"
+        removed=$((removed + 1))
+    elif command -v jq &>/dev/null; then
+        settings_content=$(jq -s "$JQ_REMOVE_PLUGINS" "$settings_file" "$plugins_src")
+        echo "$settings_content" > "$settings_file"
+        log_rm "settings.json (tracked plugin entries only; other settings preserved)"
+        removed=$((removed + 1))
+    else
+        log_info "jq not found: leaving settings.json untouched — remove tracked plugin entries manually"
     fi
     echo ""
 fi

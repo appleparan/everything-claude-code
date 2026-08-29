@@ -110,7 +110,8 @@ test('no jq + multiple hooks files: merge skipped with install hint', () => {
   const out = res.stdout + res.stderr;
   assert.ok(/jq not found/.test(out), 'expected jq not found warning');
   assert.ok(/apt install jq/.test(out) && /brew install jq/.test(out), 'expected per-OS jq install hint');
-  assert.ok(/Skipped:.*1/.test(out), 'skipped hooks merge must count in the summary');
+  // hooks merge (+1) and plugins merge (+1) are both skipped without jq
+  assert.ok(/Skipped:.*2/.test(out), 'skipped hooks + plugins merges must count in the summary');
 });
 
 test('no jq + single hooks file + no existing settings.json: install succeeds', () => {
