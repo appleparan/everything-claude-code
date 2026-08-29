@@ -4,6 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "${REPO_ROOT}/scripts/lib/common.sh"
+# shellcheck source=../../scripts/lib/prune.sh
+source "${REPO_ROOT}/scripts/lib/prune.sh"
+PRUNE_TARGET="codex"
 
 usage() {
     cat <<EOF
@@ -18,6 +21,8 @@ Install shared configuration into Codex (\$CODEX_HOME or ~/.codex):
 Options:
   -f    Force overwrite existing files / MCP entries
   -n    Dry run
+  -p    Prune orphaned files from previous installs (see .ecc-manifest);
+        with no manifest yet, falls back to a git-history check
   -l    List available languages and exit
   -h    Show this help
 EOF
@@ -25,10 +30,12 @@ EOF
 
 FORCE=false
 DRY_RUN=false
-while getopts "fnlh" opt; do
+PRUNE=false
+while getopts "fnplh" opt; do
     case $opt in
         f) FORCE=true ;;
         n) DRY_RUN=true ;;
+        p) PRUNE=true ;;
         l) discover_languages; exit 0 ;;
         h) usage; exit 0 ;;
         *) usage; exit 1 ;;
@@ -80,6 +87,7 @@ for lang in "${LANGUAGES[@]}"; do
         name=$(basename "$f")
         copy_file "$f" "${CODEX_DIR}/instructions/${name}" \
             "content/rules/${lang}/${name}" "instructions/${name}"
+        manifest_add "$lang" "instructions/${name}"
     done
 done
 echo ""
@@ -104,6 +112,7 @@ for lang in "${LANGUAGES[@]}"; do
         [[ "$skill_name" == .* ]] && continue
         copy_dir "$skill_dir" "${CODEX_DIR}/skills/${skill_name}" \
             "content/skills/${lang}/${skill_name}/" "skills/${skill_name}/"
+        manifest_add "$lang" "skills/${skill_name}"
     done
 done
 echo ""
@@ -120,6 +129,14 @@ else
     log_warn "uv not found; skipping MCP merge into config.toml"
     log_warn "Add servers from content/mcp/servers.json manually"
 fi
+
+# Orphan pruning + manifest write. run_prune lists/deletes based on the old
+# manifest (or falls back to git history when no manifest exists yet and -p
+# was given); manifest_write always seeds/refreshes the manifest for next
+# time, except on dry-run where it is a no-op.
+LANGS_NL=$(printf '%s\n' "${LANGUAGES[@]}")
+run_prune "$CODEX_DIR" "$LANGS_NL" "$PRUNE"
+manifest_write "$CODEX_DIR" "$LANGS_NL"
 
 echo ""
 echo "────────────────────────────────"

@@ -71,8 +71,35 @@ Options (shared by install and uninstall):
 | `--target claude\|codex\|all` | Which tool to install into (default `all`) |
 | `-n` | Dry run — show what would be copied without copying |
 | `-f` | Force-overwrite existing files (default is skip) |
+| `-p` | Prune orphaned files left by previous installs (see below) |
 | `-l` | List available languages |
 | `-h` | Show help |
+
+### Pruning orphaned files (`-p`)
+
+Every non-dry-run install writes `.ecc-manifest` next to the installed files
+(`~/.claude/.ecc-manifest`, `~/.codex/.ecc-manifest`), recording every
+destination that install manages for the languages you selected. Content
+that's shared/merged (`CLAUDE.md`, `settings.json`, `AGENTS.md`,
+`config.toml`) is never tracked, so it's never a prune candidate.
+
+```bash
+./scripts/install.sh -p common node        # prune + install
+./scripts/install.sh -n -p common node     # preview what -p would remove
+```
+
+- With a manifest already present, `-p` deletes entries for the languages
+  you're installing that no longer correspond to a file the repo ships (a
+  file that just moved between languages is left alone). Without `-p`, an
+  orphan is reported with an INFO hint instead of being touched.
+- On the very first run after upgrading (no manifest yet), `-p` falls back
+  to a git-history check: it looks for locally-present files matching paths
+  this repo used to ship but no longer does, verifies each one is
+  byte-identical to some historical version, and asks for `y`/`N`
+  confirmation before deleting anything verified. Locally modified or
+  unrecognized files are listed as not verified and left untouched.
+  Requires the repo checkout running the install to be a git work tree;
+  otherwise the fallback is skipped with a warning.
 
 ### What the Claude target installs
 

@@ -25,6 +25,10 @@ Targets:
   codex    Install shared content to ~/.codex (AGENTS.md, instructions, skills, MCP)
   all      Both (default; codex skipped when not detected)
 
+Common option worth knowing about here: -p prunes orphaned files left behind
+by previous installs (tracked via .ecc-manifest, with a git-history fallback
+on the first run). See below for the full set of target-specific options.
+
 Target-specific options follow below.
 EOF
 }
