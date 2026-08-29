@@ -27,6 +27,10 @@ Categories removed:
   plugins/   Tracked plugin entries (enabledPlugins + extraKnownMarketplaces
              in settings.json)
 
+Note: hooks and plugins in settings.json are global, not per-language —
+uninstalling ANY language removes the hooks key and ALL tracked plugin
+entries, even when other installed languages remain.
+
 Options:
   -n    Dry run (show what would be removed without removing)
   -l    List available languages and exit

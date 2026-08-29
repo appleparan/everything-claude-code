@@ -256,5 +256,60 @@ test('uninstall removes tracked plugin entries and preserves the rest', () => {
   );
 });
 
+// ---------------------------------------------------------------------------
+// 8. Uninstall drops plugin keys entirely when nothing untracked remains
+// ---------------------------------------------------------------------------
+test('uninstall deletes plugin keys left empty by the removal', () => {
+  const repo = buildRepo();
+  const home = mkHome();
+  writeSettings(home, {
+    model: 'opus',
+    enabledPlugins: {
+      'alpha@official-market': true,
+      'beta@custom-market': true
+    },
+    extraKnownMarketplaces: {
+      'custom-market': PLUGINS_JSON.extraKnownMarketplaces['custom-market']
+    }
+  });
+
+  const res = runScript(repo, 'uninstall.sh', ['common'], home);
+  assert.strictEqual(res.status, 0, res.stderr);
+
+  const settings = readSettings(home);
+  assert.strictEqual(settings.model, 'opus');
+  assert.strictEqual(settings.enabledPlugins, undefined, 'emptied enabledPlugins key must be dropped');
+  assert.strictEqual(settings.extraKnownMarketplaces, undefined, 'emptied extraKnownMarketplaces key must be dropped');
+});
+
+// ---------------------------------------------------------------------------
+// 9. Uninstall without settings.json reports not-found, does not fail
+// ---------------------------------------------------------------------------
+test('uninstall without settings.json succeeds and reports not found', () => {
+  const repo = buildRepo();
+  const home = mkHome();
+  const res = runScript(repo, 'uninstall.sh', ['common'], home);
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.ok(!fs.existsSync(path.join(home, '.claude', 'settings.json')), 'settings.json must not be created');
+});
+
+// ---------------------------------------------------------------------------
+// 10. jq-less uninstall leaves settings.json untouched
+// ---------------------------------------------------------------------------
+test('uninstall without jq leaves settings.json intact', () => {
+  const repo = buildRepo();
+  const home = mkHome();
+  writeSettings(home, { model: 'opus', enabledPlugins: { 'alpha@official-market': true } });
+  const before = fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8');
+
+  const jqlessBin = makeJqlessBin();
+  const res = runScript(repo, 'uninstall.sh', ['common'], home, { PATH: jqlessBin });
+  assert.strictEqual(res.status, 0, res.stderr);
+
+  const after = fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8');
+  assert.strictEqual(after, before, 'settings.json must not change without jq');
+  assert.ok(/jq not found/.test(res.stdout + res.stderr), 'expected a jq warning');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

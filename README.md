@@ -130,6 +130,9 @@ Hook handling details worth knowing:
   into `settings.json` (your untracked plugins survive), and Claude Code
   auto-installs the listed plugins on next startup. Refresh the tracked list
   with `jq '{enabledPlugins, extraKnownMarketplaces}' ~/.claude/settings.json`.
+- Plugins (like the global `CLAUDE.md`) are language-agnostic: they are
+  merged on every install regardless of which languages you select, and
+  uninstalling *any* language removes all tracked plugin entries.
 
 ### Project-level hooks
 
