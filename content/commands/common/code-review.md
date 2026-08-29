@@ -60,7 +60,7 @@ background Bash task (`run_in_background: true`) so both reviews run
 concurrently:
 
 ```bash
-node "$(ls -d ~/.claude/plugins/cache/openai-codex/codex/*/scripts/codex-companion.mjs | sort -V | tail -1)" review --wait
+bun "$(ls -d ~/.claude/plugins/cache/openai-codex/codex/*/scripts/codex-companion.mjs | sort -V | tail -1)" review --wait
 ```
 
 Then perform your own checklist review while Codex runs, collect the
