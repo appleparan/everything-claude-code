@@ -64,6 +64,21 @@ Base bug fixes on empirical evidence (logs, repro) before proposing a
 root cause. State the hypothesis and test it before implementing the
 fix.
 
+- Present causes only as hypothesis + verification method, never as
+  conclusions.
+- Quote findings from logs/config verbatim with line numbers.
+- Prefer read-only verification commands (describe, logs, get); ask
+  before running anything that changes state.
+- To revisit a hypothesis the user has ruled out, present new
+  evidence first.
+- Record ruled-out hypotheses with the evidence that eliminated them
+  (e.g. "suspected DNS, but resolve times were normal — ruled out").
+  The elimination trail shows systematic narrowing and matters as much
+  as the answer itself.
+- Once the root cause is found, include recurrence prevention — even
+  one line (monitoring, alerting, config change). Debugging ends when
+  the issue can't happen again, not when it's fixed.
+
 ## Safety
 
 - Never include destructive commands (`rm -rf`,
