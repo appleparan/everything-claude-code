@@ -28,6 +28,8 @@ Categories installed:
   rules/     Rules and guidelines (.md)
   hooks/     Global hooks (merged into settings.json)
              Project hooks (copied to project-hooks/ as templates)
+  plugins/   Claude Code plugins (enabledPlugins + extraKnownMarketplaces
+             merged into settings.json; auto-installed on startup)
 
 Options:
   -f    Force overwrite existing files
@@ -125,6 +127,59 @@ merge_hooks() {
             "$dest" <(echo "$content"))
     fi
 
+    echo "$content" > "$dest"
+}
+
+# jq filter for merging content/plugins/plugins.json into settings.json.
+# Input: [settings (or {}), plugins.json]. Only enabledPlugins and
+# extraKnownMarketplaces are taken from the plugins file (never _comments),
+# merged additively so the user's untracked plugins/marketplaces survive;
+# repo values win per key. (Single line to avoid multiline quoting issues.)
+JQ_MERGE_PLUGINS='.[1] as $plugins | .[0] | .enabledPlugins = ((.enabledPlugins // {}) + ($plugins.enabledPlugins // {})) | .extraKnownMarketplaces = ((.extraKnownMarketplaces // {}) + ($plugins.extraKnownMarketplaces // {}))'
+
+# Merge tracked plugins into settings.json. Claude Code auto-installs the
+# listed plugins/marketplaces on startup, so this is all a new machine needs.
+merge_plugins() {
+    local src="${CONTENT_ROOT}/plugins/plugins.json"
+    local dest="${CLAUDE_DIR}/settings.json"
+
+    [[ -f "$src" ]] || return 0
+
+    echo ""
+    echo -e "${CYAN}[plugins]${NC}"
+
+    if $DRY_RUN; then
+        log_dry "content/plugins/plugins.json" "settings.json (enabledPlugins, extraKnownMarketplaces)"
+        return
+    fi
+
+    # Mirror the hooks-merge UX: an existing settings.json is only touched
+    # with -f.
+    if [[ -f "$dest" ]] && ! $FORCE; then
+        log_skip "settings.json (plugins)"
+        skipped=$((skipped + 1))
+        return
+    fi
+
+    # jq is required to extract only the plugin keys from plugins.json and to
+    # merge into settings.json without losing its other keys. Without jq, skip
+    # rather than destroy data.
+    if ! command -v jq &>/dev/null; then
+        log_warn "jq not found: cannot merge plugins into settings.json. Skipping plugins."
+        jq_install_hint
+        skipped=$((skipped + 1))
+        return
+    fi
+
+    local content
+    if [[ -f "$dest" ]]; then
+        content=$(jq -s "$JQ_MERGE_PLUGINS" "$dest" "$src")
+    else
+        content=$(jq -s "$JQ_MERGE_PLUGINS" <(echo '{}') "$src")
+    fi
+
+    log_copy "content/plugins/plugins.json" "settings.json (enabledPlugins, extraKnownMarketplaces)"
+    copied=$((copied + 1))
     echo "$content" > "$dest"
 }
 
@@ -325,6 +380,11 @@ done
 if [[ ${#hooks_to_merge[@]} -gt 0 ]]; then
     merge_hooks "${hooks_to_merge[@]}"
 fi
+
+# Merge tracked plugins (content/plugins/plugins.json) into settings.json.
+# Runs after the hooks merge so a freshly created settings.json is extended,
+# not overwritten.
+merge_plugins
 
 # Smoke test: every script path referenced by hook commands in settings.json
 # must exist, otherwise those hooks are silent no-ops at runtime.

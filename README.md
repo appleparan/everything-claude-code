@@ -114,6 +114,7 @@ that's shared/merged (`CLAUDE.md`, `settings.json`, `AGENTS.md`,
 | `content/rules/<lang>/*.md` | `~/.claude/rules/` | Always-follow guidelines |
 | `content/hooks/<lang>/hooks.json`, `global-hooks.json` | merged into `~/.claude/settings.json` | Global hooks |
 | `content/hooks/<lang>/project-hooks.json` | `~/.claude/project-hooks/<lang>.json` | Templates for `init-project.sh` |
+| `content/plugins/plugins.json` | merged into `~/.claude/settings.json` | Tracked plugins + marketplaces |
 | `scripts/<lang>/hooks/`, `scripts/<lang>/lib/` | `~/.claude/scripts/<lang>/...` | Hook runtime scripts |
 
 Hook handling details worth knowing:
@@ -124,6 +125,14 @@ Hook handling details worth knowing:
   (permissions, model, enabled plugins, ...) are preserved.
 - After install, a smoke test warns about any hook that references a script
   path that doesn't exist.
+- `content/plugins/plugins.json` tracks Claude Code plugins: its
+  `enabledPlugins` and `extraKnownMarketplaces` keys are merged additively
+  into `settings.json` (your untracked plugins survive), and Claude Code
+  auto-installs the listed plugins on next startup. Refresh the tracked list
+  with `jq '{enabledPlugins, extraKnownMarketplaces}' ~/.claude/settings.json`.
+- Plugins (like the global `CLAUDE.md`) are language-agnostic: they are
+  merged on every install regardless of which languages you select, and
+  uninstalling *any* language removes all tracked plugin entries.
 
 ### Project-level hooks
 
