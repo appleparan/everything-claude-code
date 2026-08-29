@@ -67,7 +67,7 @@ if (!hasUv) {
     assert.strictEqual(res.status, 0, res.stderr);
     const out = fs.readFileSync(config, 'utf8');
     assert.ok(out.includes('[mcp_servers.chrome-devtools]'));
-    assert.ok(out.includes('command = "npx"'));
+    assert.ok(out.includes('command = "bunx"'));
     assert.ok(!out.includes('description'), 'description key must be dropped');
   });
 
