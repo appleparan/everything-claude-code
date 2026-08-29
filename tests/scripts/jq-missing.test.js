@@ -101,6 +101,17 @@ test('no jq + multiple hooks files: merge skipped with install hint', () => {
   const out = res.stdout + res.stderr;
   assert.ok(/jq not found/.test(out), 'expected jq not found warning');
   assert.ok(/apt install jq/.test(out) && /brew install jq/.test(out), 'expected per-OS jq install hint');
+  assert.ok(/Skipped:.*1/.test(out), 'skipped hooks merge must count in the summary');
+});
+
+test('no jq + single hooks file + no existing settings.json: install succeeds', () => {
+  const home = makeHome(null);
+  const res = runInstall(['-f', 'common'], { home, jqless: true });
+  assert.strictEqual(res.status, 0, res.stderr);
+  const settings = JSON.parse(
+    fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8')
+  );
+  assert.ok(settings.hooks, 'hooks key missing after jq-less single-file install');
 });
 
 test('with jq + existing settings.json: hooks merged, non-hook keys preserved', () => {

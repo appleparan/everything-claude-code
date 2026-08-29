@@ -89,6 +89,7 @@ merge_hooks() {
             for f in "${hooks_files[@]}"; do
                 log_warn "  - $(realpath --relative-to="$REPO_ROOT" "$f")"
             done
+            skipped=$((skipped + 1))
             return
         fi
     fi
