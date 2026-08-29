@@ -320,7 +320,11 @@ for lang in "${LANGUAGES[@]}"; do
         hooks_to_merge+=("$global_hooks_file")
     fi
 done
-merge_hooks "${hooks_to_merge[@]}"
+# bash 3.2 + set -u treats expanding an EMPTY array with "${arr[@]}" as an
+# unbound variable (fixed in 4.4), so the call must be guarded by length.
+if [[ ${#hooks_to_merge[@]} -gt 0 ]]; then
+    merge_hooks "${hooks_to_merge[@]}"
+fi
 
 # Smoke test: every script path referenced by hook commands in settings.json
 # must exist, otherwise those hooks are silent no-ops at runtime.
