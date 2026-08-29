@@ -36,13 +36,12 @@ of guessing.
 Plan before implementing: understand the actual problem, the affected
 code, and the risks; prefer the simplest approach that works. For
 non-trivial work, write the plan to `IMPLEMENTATION_PLAN.md` in the
-worktree root and keep its status current; before removing it, record
-a summary (stages, key decisions, verification results) in the issue
-or PR — or, when no forge is available, in the change's
-`docs/changes/` record. The `ship` skill covers the full plan →
-issue → worktree → TDD → PR flow, including the local record
-fallback (`Change:` commit trailers + `docs/changes/` documents)
-used when `gh`/`glab` are unavailable.
+worktree root and keep its status current. It is a working document
+for agents to follow during the session — never commit it (add it to
+`.git/info/exclude` if needed); the durable record of the work lives
+in the issue/PR or the change's `docs/changes/` document. The `ship`
+skill covers the full plan → issue → worktree → TDD → PR flow,
+including the local record fallback when `gh`/`glab` are unavailable.
 
 ## Design Decisions
 
