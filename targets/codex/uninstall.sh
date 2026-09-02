@@ -98,11 +98,21 @@ done
 # language-agnostic: uninstalling any language removes all tracked entries,
 # mirroring the plugins.json semantics on the Claude side.
 ext_src="${CONTENT_ROOT}/plugins/codex-skills.json"
-if [[ -f "$ext_src" ]] && command -v jq &>/dev/null; then
-    while IFS= read -r ext_name; do
-        [[ -n "$ext_name" ]] || continue
-        remove_dir "${CODEX_DIR}/skills/${ext_name}" "skills/${ext_name}/"
-    done < <(jq -r '.skills[].name' "$ext_src")
+if [[ -f "$ext_src" ]]; then
+    if command -v jq &>/dev/null; then
+        while IFS= read -r ext_name; do
+            [[ -n "$ext_name" ]] || continue
+            # Twin of the install-side guard: never delete outside skills/.
+            case "$ext_name" in
+                .|..|*/*|*'\'*)
+                    log_warn "skills: invalid name '${ext_name}'; skipped"
+                    continue ;;
+            esac
+            remove_dir "${CODEX_DIR}/skills/${ext_name}" "skills/${ext_name}/"
+        done < <(jq -r '(.skills // [])[].name' "$ext_src")
+    else
+        log_info "jq not found; remove external skills from codex-skills.json manually"
+    fi
 fi
 cleanup_empty_dir "${CODEX_DIR}/skills" "skills/"
 echo ""

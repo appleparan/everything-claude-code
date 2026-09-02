@@ -261,5 +261,79 @@ test('uninstall removes tracked external skills only', () => {
   assert.ok(fs.existsSync(path.join(userSkill, 'SKILL.md')), 'untracked skill must survive');
 });
 
+// ---------------------------------------------------------------------------
+// 9. A name with path separators is rejected on install and uninstall
+// ---------------------------------------------------------------------------
+test('name escaping skills/ is rejected by install and uninstall', () => {
+  const skillRepo = makeSkillRepo('test-skill');
+  const repo = buildRepo(
+    skillsJsonFor([
+      { name: '../../victim', repo: skillRepo, path: 'codex/skills/test-skill' }
+    ])
+  );
+  const codexHome = mkCodexHome();
+  const victim = path.join(codexHome, 'victim');
+  fs.mkdirSync(victim, { recursive: true });
+  fs.writeFileSync(path.join(victim, 'keep.txt'), 'keep\n');
+
+  let res = runScript(repo, 'install.sh', ['common'], codexHome);
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(!fs.existsSync(path.join(victim, 'SKILL.md')), 'must not write outside skills/');
+  assert.ok(/invalid name/.test(res.stdout + res.stderr), 'expected an invalid-name warning');
+
+  res = runScript(repo, 'uninstall.sh', ['common'], codexHome);
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(fs.existsSync(path.join(victim, 'keep.txt')), 'must not delete outside skills/');
+});
+
+// ---------------------------------------------------------------------------
+// 10. A path with .. segments or an absolute path is rejected
+// ---------------------------------------------------------------------------
+test('path with .. segments or absolute path is rejected', () => {
+  const skillRepo = makeSkillRepo('test-skill');
+  const repo = buildRepo(
+    skillsJsonFor([
+      { name: 'sneaky', repo: skillRepo, path: '../outside' },
+      { name: 'rooted', repo: skillRepo, path: '/etc' }
+    ])
+  );
+  const codexHome = mkCodexHome();
+  const res = runScript(repo, 'install.sh', ['common'], codexHome);
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(!fs.existsSync(path.join(codexHome, 'skills', 'sneaky')));
+  assert.ok(!fs.existsSync(path.join(codexHome, 'skills', 'rooted')));
+  assert.ok(/invalid path/.test(res.stdout + res.stderr), 'expected an invalid-path warning');
+});
+
+// ---------------------------------------------------------------------------
+// 11. A copy failure warns and skips without aborting the rest of the install
+// ---------------------------------------------------------------------------
+test('unwritable skills/ dir warns and does not abort the install', () => {
+  if (process.getuid && process.getuid() === 0) {
+    console.log('  SKIP  running as root; read-only dir is not enforceable');
+    return;
+  }
+  const skillRepo = makeSkillRepo('test-skill');
+  const repo = buildRepo(
+    skillsJsonFor([
+      { name: 'test-skill', repo: skillRepo, path: 'codex/skills/test-skill' }
+    ])
+  );
+  const codexHome = mkCodexHome();
+  const skillsDir = path.join(codexHome, 'skills');
+  fs.mkdirSync(skillsDir, { recursive: true });
+  fs.chmodSync(skillsDir, 0o555);
+  try {
+    const res = runScript(repo, 'install.sh', ['common'], codexHome);
+    assert.strictEqual(res.status, 0, 'install must not abort: ' + res.stderr + res.stdout);
+    assert.ok(
+      /copy failed|skipped/.test(res.stdout + res.stderr),
+      'expected a copy-failure warning'
+    );
+  } finally {
+    fs.chmodSync(skillsDir, 0o755);
+  }
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);
