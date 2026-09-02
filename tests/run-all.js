@@ -26,7 +26,8 @@ const testFiles = [
   'scripts/install-prune.test.js',
   'scripts/install-plugins.test.js',
   'scripts/jq-missing.test.js',
-  'scripts/codex-adapter.test.js'
+  'scripts/codex-adapter.test.js',
+  'scripts/codex-external-skills.test.js'
 ];
 
 const BOX_W = 58; // inner width between delimiters

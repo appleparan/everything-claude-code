@@ -12,7 +12,8 @@ Usage: $(basename "$0") [OPTIONS] <language>...
 Uninstall shared configuration from Codex (\$CODEX_HOME or ~/.codex):
   AGENTS.md          Global instructions + rules index (generated)
   instructions/      Rules files, read on demand via the index
-  skills/            Skill folders (invoked via \$skill-name)
+  skills/            Skill folders (invoked via \$skill-name), plus external
+                     skills tracked in content/plugins/codex-skills.json
   config.toml        Left untouched (user state); manual-removal hints printed
 
 Options:
@@ -93,6 +94,16 @@ for lang in "${LANGUAGES[@]}"; do
         remove_dir "${CODEX_DIR}/skills/${skill_name}" "skills/${skill_name}/"
     done
 done
+# Tracked external skills (content/plugins/codex-skills.json) are
+# language-agnostic: uninstalling any language removes all tracked entries,
+# mirroring the plugins.json semantics on the Claude side.
+ext_src="${CONTENT_ROOT}/plugins/codex-skills.json"
+if [[ -f "$ext_src" ]] && command -v jq &>/dev/null; then
+    while IFS= read -r ext_name; do
+        [[ -n "$ext_name" ]] || continue
+        remove_dir "${CODEX_DIR}/skills/${ext_name}" "skills/${ext_name}/"
+    done < <(jq -r '.skills[].name' "$ext_src")
+fi
 cleanup_empty_dir "${CODEX_DIR}/skills" "skills/"
 echo ""
 
