@@ -1,0 +1,20 @@
+{
+  "skills": [
+    {
+      "name": "humanize-korean",
+      "repo": "https://github.com/epoko77-ai/im-not-ai.git",
+      "path": "codex/skills/humanize-korean"
+    },
+    {
+      "name": "humanizer",
+      "repo": "https://github.com/blader/humanizer.git",
+      "path": "."
+    }
+  ],
+  "_comments": {
+    "usage": "External Codex skills installed by targets/codex/install.sh into $CODEX_DIR/skills/<name>/. Each entry is shallow-cloned and <path> (which must contain SKILL.md) is copied.",
+    "claude": "The Claude Code side of these tools is tracked separately in plugins.json (humanize-korean@im-not-ai, humanizer@humanizer, added in PR #34).",
+    "humanizer": "blader/humanizer documents no official Codex install; its root SKILL.md is self-contained, so the repo root is installed as the skill directory.",
+    "trust": "Entries are unpinned: each install clones the default-branch HEAD, so upstream pushes land in ~/.codex/skills/ on the next -f install. This mirrors the Claude plugin auto-update behavior and is a deliberate trust decision — only list repos you trust; pin by switching repo to a fork if needed."
+  }
+}

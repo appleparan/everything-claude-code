@@ -15,7 +15,8 @@ Usage: $(basename "$0") [OPTIONS] <language>...
 Install shared configuration into Codex (\$CODEX_HOME or ~/.codex):
   AGENTS.md          Global instructions + rules index (generated)
   instructions/      Rules files, read on demand via the index
-  skills/            Skill folders (invoked via \$skill-name)
+  skills/            Skill folders (invoked via \$skill-name), plus external
+                     skills tracked in content/plugins/codex-skills.json
   config.toml        [mcp_servers.*] entries merged (backup created)
 
 Options:
@@ -95,7 +96,8 @@ echo ""
 # 2. AGENTS.md (generated: global instructions + rules index)
 echo -e "${CYAN}[global]${NC}"
 agents_tmp=$(mktemp)
-trap 'rm -f "$agents_tmp"' EXIT
+ext_tmp=""  # per-entry clone dir of install_external_skills, covered by the trap
+trap 'rm -f "$agents_tmp"; if [[ -n "$ext_tmp" ]]; then rm -rf "${ext_tmp:?}"; fi' EXIT
 "${SCRIPT_DIR}/build-agents-md.sh" "${DEST_LABEL}/instructions" "${LANGUAGES[@]}" > "$agents_tmp"
 copy_file "$agents_tmp" "${CODEX_DIR}/AGENTS.md" \
     "content/instructions/global.md (+rules index)" "AGENTS.md"
@@ -116,6 +118,88 @@ for lang in "${LANGUAGES[@]}"; do
     done
 done
 echo ""
+
+# 3.5 External skills, cloned from the repos tracked in codex-skills.json.
+# Language-agnostic like plugins.json: merged on every install, and kept out
+# of the per-language prune manifest. Failures (offline, bad path) warn and
+# skip the entry so the rest of the install still succeeds.
+install_external_skills() {
+    local src="${CONTENT_ROOT}/plugins/codex-skills.json"
+    [[ -f "$src" ]] || return 0
+
+    echo -e "${CYAN}[external skills]${NC}"
+    if ! command -v jq &>/dev/null; then
+        log_warn "jq not found; skipping external skills"
+        jq_install_hint
+        return 0
+    fi
+    if ! command -v git &>/dev/null; then
+        log_warn "git not found; skipping external skills"
+        return 0
+    fi
+
+    local name repo skill_path dest
+    while IFS=$'\t' read -r name repo skill_path; do
+        [[ -n "$name" ]] || continue
+
+        # The JSON is repo-tracked, but a typo'd name/path must never write or
+        # delete outside $CODEX_DIR/skills/<name>/ (uninstall.sh has the twin
+        # name guard).
+        case "$name" in
+            .|..|*/*|*'\'*)
+                log_warn "skills: invalid name '${name}'; skipped"
+                continue ;;
+        esac
+        if [[ -z "$repo" || -z "$skill_path" ]]; then
+            log_warn "skills/${name}: missing repo or path; skipped"
+            continue
+        fi
+        case "/${skill_path}/" in
+            //*|*/../*)
+                log_warn "skills/${name}: invalid path '${skill_path}'; skipped"
+                continue ;;
+        esac
+
+        dest="${CODEX_DIR}/skills/${name}"
+
+        if $DRY_RUN; then
+            log_dry "${repo} (${skill_path})" "skills/${name}/"
+            copied=$((copied + 1))
+            continue
+        fi
+        if [[ -d "$dest" ]] && ! $FORCE; then
+            log_skip "skills/${name}/"
+            skipped=$((skipped + 1))
+            continue
+        fi
+
+        ext_tmp=$(mktemp -d "${TMPDIR:-/tmp}/ecc-ext-skill.XXXXXX")
+        if ! GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 "$repo" "${ext_tmp}/repo"; then
+            log_warn "skills/${name}: clone failed (${repo}); skipped"
+            rm -rf "${ext_tmp:?}"; ext_tmp=""
+            continue
+        fi
+        if [[ ! -f "${ext_tmp}/repo/${skill_path}/SKILL.md" ]]; then
+            log_warn "skills/${name}: no SKILL.md at '${skill_path}' in ${repo}; skipped"
+            rm -rf "${ext_tmp:?}"; ext_tmp=""
+            continue
+        fi
+        rm -rf "${ext_tmp:?}/repo/.git"
+        # Overlay copy (same semantics as copy_dir): files removed upstream
+        # survive a -f refresh. Guarded so one broken entry cannot abort the
+        # rest of the install under set -e.
+        if ! { mkdir -p "$dest" && cp -r "${ext_tmp}/repo/${skill_path}"/. "$dest"/; }; then
+            log_warn "skills/${name}: copy failed; skipped"
+            rm -rf "${ext_tmp:?}"; ext_tmp=""
+            continue
+        fi
+        log_copy "${repo} (${skill_path})" "skills/${name}/"
+        copied=$((copied + 1))
+        rm -rf "${ext_tmp:?}"; ext_tmp=""
+    done < <(jq -r '(.skills // [])[] | [.name, .repo, .path // ""] | @tsv' "$src")
+    echo ""
+}
+install_external_skills
 
 # 4. MCP servers → config.toml (key-scoped merge, backup created)
 echo -e "${CYAN}[mcp]${NC}"

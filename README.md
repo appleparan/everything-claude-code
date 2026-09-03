@@ -164,6 +164,7 @@ detected) installs into `$CODEX_HOME` or `~/.codex`:
 | `content/instructions/global.md` + rules index | `~/.codex/AGENTS.md` (generated) |
 | `content/rules/**` | `~/.codex/instructions/*.md` (flat, one file per rule) |
 | `content/skills/**` | `~/.codex/skills/<name>/` (invoked via `$skill-name`, e.g. `$git-commit-msg`) |
+| `content/plugins/codex-skills.json` | External skills shallow-cloned from their git repos into `~/.codex/skills/<name>/`. Each entry names a repo and the in-repo path of a directory containing `SKILL.md`. Language-agnostic (installed on every install, removed by uninstalling any language); entries are skipped with a warning when `git`/`jq` are missing, the clone fails, or the path has no `SKILL.md`. Existing skill dirs are only refreshed with `-f`. |
 | `content/mcp/servers.json` | `[mcp_servers.*]` merged into `~/.codex/config.toml`, with a timestamped backup of the existing file. Only servers tagged with a matching `languages` entry (plus untagged/common servers) are merged for the languages being installed. Requires `uv`; if it's missing, the MCP step is skipped with a warning and the entries can be added manually. |
 
 MCP servers are installed only when needed: each entry in
