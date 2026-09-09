@@ -27,7 +27,8 @@ const testFiles = [
   'scripts/install-plugins.test.js',
   'scripts/jq-missing.test.js',
   'scripts/codex-adapter.test.js',
-  'scripts/codex-external-skills.test.js'
+  'scripts/codex-external-skills.test.js',
+  'scripts/codex-agents.test.js'
 ];
 
 const BOX_W = 58; // inner width between delimiters

@@ -16,6 +16,22 @@ Located in `~/.claude/agents/`:
 | refactor-cleaner | Dead code cleanup | Code maintenance |
 | doc-updater | Documentation | Updating docs |
 
+## Codex Subagents
+
+Codex has no agent files of this kind, but it can spawn subagents.
+`targets/codex/install.sh` installs two role files into
+`~/.codex/agents/` that override the built-in roles and pin a cheaper
+model than the parent:
+
+| Role | Model | Use for |
+|------|-------|---------|
+| worker | gpt-5.6-terra | Implementation, tests, mechanical refactors |
+| explorer | gpt-5.6-luna | Read-only code search and tracing |
+
+Codex spawns only on a direct request or an applicable instruction, so
+ask explicitly ("Spawn a worker agent to …"). Planning and review stay
+with the parent model.
+
 ## When to Delegate
 
 Use an agent when the task genuinely benefits from a separate context:

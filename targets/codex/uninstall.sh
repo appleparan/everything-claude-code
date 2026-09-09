@@ -14,6 +14,7 @@ Uninstall shared configuration from Codex (\$CODEX_HOME or ~/.codex):
   instructions/      Rules files, read on demand via the index
   skills/            Skill folders (invoked via \$skill-name), plus external
                      skills tracked in content/plugins/codex-skills.json
+  agents/            Custom subagent roles from content/codex/agents/
   config.toml        Left untouched (user state); manual-removal hints printed
 
 Options:
@@ -117,13 +118,26 @@ fi
 cleanup_empty_dir "${CODEX_DIR}/skills" "skills/"
 echo ""
 
-echo -e "${CYAN}[mcp]${NC}"
+echo -e "${CYAN}[agents]${NC}"
+agents_src_dir="${CONTENT_ROOT}/codex/agents"
+if [[ -d "$agents_src_dir" ]]; then
+    for f in "$agents_src_dir"/*.toml; do
+        [[ -f "$f" ]] || continue
+        name=$(basename "$f")
+        remove_file "${CODEX_DIR}/agents/${name}" "agents/${name}"
+    done
+fi
+cleanup_empty_dir "${CODEX_DIR}/agents" "agents/"
+echo ""
+
+echo -e "${CYAN}[config]${NC}"
 log_info "config.toml is user state and is left untouched."
 if command -v jq &>/dev/null; then
     while IFS= read -r name; do
         log_info "remove [mcp_servers.${name}] from ${DEST_LABEL}/config.toml manually if unwanted"
     done < <(jq -r '.mcpServers | keys[]' "${CONTENT_ROOT}/mcp/servers.json")
 fi
+log_info "remove [agents] default_subagent_model (installed from content/codex/config.toml) from ${DEST_LABEL}/config.toml manually if unwanted"
 
 echo ""
 echo "────────────────────────────────"

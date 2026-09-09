@@ -34,18 +34,44 @@ Pricing is $ per MTok (input / output).
 | Claude Sonnet 4.6 | — | Previous balanced | $3 / $15 | |
 | Claude Haiku 4.5 | `haiku` | Fast/cheap | $1 / $5 | Worker agents, triage |
 
-### OpenAI GPT-5.6 (Codex)
+### OpenAI (Codex)
 
 The global CLAUDE.md is also installed as `~/.codex/AGENTS.md`, so
 Codex sessions share these guidelines. Codex model IDs go in
-`~/.codex/config.toml` (`model = "gpt-5.6"` selects the default tier)
-or via `codex -m <id>`. All three tiers GA since 2026-07-09.
+`~/.codex/config.toml` (`model = "gpt-6-astra"`) or via
+`codex -m <id>`. GPT-5.6 tiers GA since 2026-07-09; GPT-6 Astra is the
+frontier tier above them.
 
 | Model | ID | Tier | Pricing | Notes |
 |-------|----|------|---------|-------|
+| GPT-6 Astra | `gpt-6-astra` | Frontier | $10 / $50 (needs verification) | Codex counterpart of Fable: planning, review, hard problems. Subagents must not inherit it for routine work |
 | GPT-5.6 Sol | `gpt-5.6-sol` | Flagship | $5 / $30 | Complex, ambiguous, high-value work; supports max reasoning effort and ultra mode (subagents) |
-| GPT-5.6 Terra | `gpt-5.6-terra` | Balanced | $2.50 / $15 | Everyday workhorse for coding and tool use |
-| GPT-5.6 Luna | `gpt-5.6-luna` | Fast/cheap | $1 / $6 | Clear, repeatable tasks |
+| GPT-5.6 Terra | `gpt-5.6-terra` | Balanced | $2.50 / $15 | Everyday workhorse for coding and tool use; default `worker` subagent |
+| GPT-5.6 Luna | `gpt-5.6-luna` | Fast/cheap | $1 / $6 | Clear, repeatable tasks; default `explorer` subagent |
+
+Astra pricing is from press coverage of the launch post
+(<https://openai.com/index/gpt-6-astra/>); confirm on the OpenAI
+pricing page before quoting it.
+
+### Tier Mapping (Claude ↔ Codex)
+
+Use the same role-based delegation in both tools. The parent runs on
+the top tier; subagents run one or two tiers down.
+
+| Role | Claude Code | Codex |
+|------|-------------|-------|
+| Parent: planning, review | `fable` / `opus` | `gpt-6-astra` |
+| Deep reasoning subagent | `opus` | `gpt-5.6-sol` |
+| Implementation subagent | `sonnet` | `gpt-5.6-terra` (`worker`) |
+| Exploration / triage | `haiku` | `gpt-5.6-luna` (`explorer`) |
+
+Codex enforcement lives in config, not prose: `targets/codex/install.sh`
+installs `~/.codex/agents/{worker,explorer}.toml` (role files that pin
+their `model`) and merges `[agents] default_subagent_model` into
+`~/.codex/config.toml`. Without these, a spawned subagent inherits the
+parent model. Resolution order is explicit spawn value, then the
+`[agents]` default, then the parent (see
+<https://learn.chatgpt.com/docs/agent-configuration/subagents>).
 
 ## Thinking Depth
 

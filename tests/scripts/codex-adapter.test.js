@@ -146,5 +146,83 @@ if (!hasUv) {
   });
 }
 
+const mergeConfig = path.join(repoRoot, 'targets', 'codex', 'merge-config.py');
+const configFragment = path.join(repoRoot, 'content', 'codex', 'config.toml');
+
+function runMergeConfig(configText, fragmentPath, extraArgs = []) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-config-'));
+  const config = path.join(dir, 'config.toml');
+  if (configText !== null) fs.writeFileSync(config, configText);
+  const res = spawnSync(
+    'uv',
+    ['run', '--with', 'tomlkit', 'python3', mergeConfig,
+      '--config', config, '--fragment', fragmentPath, ...extraArgs],
+    { encoding: 'utf8' }
+  );
+  return { res, dir, config };
+}
+
+if (!hasUv) {
+  console.log('  SKIP  merge-config tests (uv not available)');
+} else {
+  test('merge-config adds [agents] defaults to a fresh config', () => {
+    const { res, config } = runMergeConfig(null, configFragment);
+    assert.strictEqual(res.status, 0, res.stderr);
+    assert.ok(res.stdout.includes('ADD  agents.default_subagent_model'));
+    const out = fs.readFileSync(config, 'utf8');
+    assert.ok(out.includes('[agents]'));
+    assert.ok(out.includes('default_subagent_model = "gpt-5.6-terra"'));
+  });
+
+  test('merge-config keeps an existing user value and skips, no backup', () => {
+    const user = 'model = "gpt-6-astra"\n\n[agents]\ndefault_subagent_model = "gpt-5.6-sol"\n';
+    const { res, dir, config } = runMergeConfig(user, configFragment);
+    assert.strictEqual(res.status, 0, res.stderr);
+    assert.ok(res.stdout.includes('SKIP agents.default_subagent_model'));
+    const out = fs.readFileSync(config, 'utf8');
+    assert.strictEqual(out, user, 'config must be unchanged when the key already exists');
+    const backups = fs.readdirSync(dir).filter((f) => f.includes('.bak.'));
+    assert.strictEqual(backups.length, 0, 'no backup expected when nothing changed');
+  });
+
+  test('merge-config --force overwrites and creates exactly one backup', () => {
+    const user = 'model = "gpt-6-astra"\n\n[agents]\ndefault_subagent_model = "gpt-5.6-sol"\n';
+    const { res, dir, config } = runMergeConfig(user, configFragment, ['--force']);
+    assert.strictEqual(res.status, 0, res.stderr);
+    assert.ok(res.stdout.includes('SET') && res.stdout.includes('agents.default_subagent_model'));
+    const out = fs.readFileSync(config, 'utf8');
+    assert.ok(out.includes('default_subagent_model = "gpt-5.6-terra"'), 'value must be overwritten');
+    assert.ok(out.includes('model = "gpt-6-astra"'), 'unrelated user key must be preserved');
+    const backups = fs.readdirSync(dir).filter((f) => f.includes('.bak.'));
+    assert.strictEqual(backups.length, 1, 'expected exactly one backup');
+  });
+
+  test('merge-config is idempotent (second run skips, no new backup)', () => {
+    const { res, dir, config } = runMergeConfig(null, configFragment);
+    assert.strictEqual(res.status, 0, res.stderr);
+    const before = fs.readFileSync(config, 'utf8');
+    const res2 = spawnSync(
+      'uv',
+      ['run', '--with', 'tomlkit', 'python3', mergeConfig,
+        '--config', config, '--fragment', configFragment],
+      { encoding: 'utf8' }
+    );
+    assert.strictEqual(res2.status, 0, res2.stderr);
+    assert.ok(res2.stdout.includes('SKIP'), 'expected SKIP on second run');
+    assert.strictEqual(fs.readFileSync(config, 'utf8'), before, 'file changed on no-op run');
+    const backups = fs.readdirSync(dir).filter((f) => f.includes('.bak.'));
+    assert.strictEqual(backups.length, 0, 'fresh + no-op runs must not create a backup');
+  });
+
+  test('merge-config rejects a fragment with a top-level scalar key', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-config-frag-'));
+    const badFragment = path.join(dir, 'bad.toml');
+    fs.writeFileSync(badFragment, 'model = "gpt-5.6-terra"\n');
+    const { res } = runMergeConfig(null, badFragment);
+    assert.strictEqual(res.status, 1, 'expected exit 1 for an unsupported fragment');
+    assert.ok(/top-level scalar/.test(res.stderr), 'expected an explanatory error on stderr');
+  });
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);
