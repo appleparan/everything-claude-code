@@ -88,6 +88,7 @@ appropriate directory:
 - `content/rules/<lang>/` for rule files
 - `content/hooks/<lang>/` for hook configurations
 - `content/mcp/` for MCP server configs
+- `content/codex/` for Codex-native config (subagent role files, `[agents]` defaults)
 
 Target-specific install logic (how content gets copied into `~/.claude` or
 `~/.codex`) lives in `targets/<target>/` (`targets/claude/`,
