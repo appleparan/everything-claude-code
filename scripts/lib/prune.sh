@@ -243,6 +243,12 @@ prune_map_source() {
     fi
 
     if [[ "$PRUNE_TARGET" == "codex" ]]; then
+        # Custom subagent role files: language-agnostic, like external skills.
+        if [[ "$srcpath" =~ ^content/codex/agents/([^/]+\.toml)$ ]]; then
+            filename="${BASH_REMATCH[1]}"
+            printf '%s\t%s\t0\n' "agents/${filename}" "$srcpath"
+            return 0
+        fi
         if [[ "$srcpath" =~ ^content/rules/([^/]+)/([^/]+\.md)$ ]]; then
             lang="${BASH_REMATCH[1]}"; filename="${BASH_REMATCH[2]}"
             lang_in_list "$lang" "$langs_nl" || return 0

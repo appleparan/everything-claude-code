@@ -17,7 +17,10 @@ Install shared configuration into Codex (\$CODEX_HOME or ~/.codex):
   instructions/      Rules files, read on demand via the index
   skills/            Skill folders (invoked via \$skill-name), plus external
                      skills tracked in content/plugins/codex-skills.json
-  config.toml        [mcp_servers.*] entries merged (backup created)
+  agents/            Custom subagent roles from content/codex/agents/
+                     (e.g. worker/explorer model overrides)
+  config.toml        [mcp_servers.*] entries merged, plus [agents] defaults
+                     from content/codex/config.toml (backup created)
 
 Options:
   -f    Force overwrite existing files / MCP entries
@@ -76,7 +79,7 @@ fi
 echo -e "Installing: ${GREEN}${LANGUAGES[*]}${NC} → ${DEST_LABEL}/"
 echo ""
 
-$DRY_RUN || mkdir -p "$CODEX_DIR/instructions" "$CODEX_DIR/skills"
+$DRY_RUN || mkdir -p "$CODEX_DIR/instructions" "$CODEX_DIR/skills" "$CODEX_DIR/agents"
 
 # 1. Rules → instructions/
 echo -e "${CYAN}[instructions]${NC}"
@@ -201,7 +204,23 @@ install_external_skills() {
 }
 install_external_skills
 
-# 4. MCP servers → config.toml (key-scoped merge, backup created)
+# 3.6 Custom subagent roles → agents/. Language-agnostic like external
+# skills: installed on every install and kept out of the per-language
+# manifest, since they are not tied to any one language's content.
+echo -e "${CYAN}[agents]${NC}"
+agents_src_dir="${CONTENT_ROOT}/codex/agents"
+if [[ -d "$agents_src_dir" ]]; then
+    for f in "$agents_src_dir"/*.toml; do
+        [[ -f "$f" ]] || continue
+        name=$(basename "$f")
+        copy_file "$f" "${CODEX_DIR}/agents/${name}" \
+            "content/codex/agents/${name}" "agents/${name}"
+    done
+fi
+echo ""
+
+# 4. MCP servers + [agents] defaults → config.toml (key-scoped merge, backup
+# created)
 echo -e "${CYAN}[mcp]${NC}"
 if command -v uv &>/dev/null; then
     merge_args=(--config "${CODEX_DIR}/config.toml" --servers "${CONTENT_ROOT}/mcp/servers.json")
@@ -210,9 +229,20 @@ if command -v uv &>/dev/null; then
     $DRY_RUN && merge_args+=(--dry-run)
     uv run --with tomlkit python3 "${SCRIPT_DIR}/merge-mcp.py" "${merge_args[@]}" \
         | sed 's/^/  /'
+
+    config_fragment="${CONTENT_ROOT}/codex/config.toml"
+    if [[ -f "$config_fragment" ]]; then
+        echo -e "${CYAN}[config]${NC}"
+        cfg_args=(--config "${CODEX_DIR}/config.toml" --fragment "$config_fragment")
+        $FORCE && cfg_args+=(--force)
+        $DRY_RUN && cfg_args+=(--dry-run)
+        uv run --with tomlkit python3 "${SCRIPT_DIR}/merge-config.py" "${cfg_args[@]}" \
+            | sed 's/^/  /'
+    fi
 else
     log_warn "uv not found; skipping MCP merge into config.toml"
     log_warn "Add servers from content/mcp/servers.json manually"
+    log_warn "Add [agents] defaults from content/codex/config.toml manually"
 fi
 
 # Orphan pruning + manifest write. run_prune lists/deletes based on the old
