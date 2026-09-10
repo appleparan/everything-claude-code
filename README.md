@@ -31,8 +31,9 @@ restructured around a script-based, dual-target install flow:
 - `jq` — merging hooks from multiple languages into `settings.json`, and
   preserving non-hook keys when overwriting an existing `settings.json`
 - Node.js — hook runtime scripts and the test suite
-- [`uv`](https://docs.astral.sh/uv/) — only for the Codex MCP config merge
-  (skipped with a warning if missing)
+- [`uv`](https://docs.astral.sh/uv/) — only for the Codex `config.toml`
+  merges ([agents] defaults and, with `-m`, MCP servers); skipped with a
+  warning if missing
 - Claude Code CLI v2.1.0+ (check with `claude --version`)
 
 ### Quick start
@@ -72,6 +73,7 @@ Options (shared by install and uninstall):
 | `-n` | Dry run — show what would be copied without copying |
 | `-f` | Force-overwrite existing files (default is skip) |
 | `-p` | Prune orphaned files left by previous installs (see below) |
+| `-m` | Merge MCP servers from `content/mcp/servers.json` (off by default; install only) |
 | `-l` | List available languages |
 | `-h` | Show help |
 
@@ -115,6 +117,7 @@ that's shared/merged (`CLAUDE.md`, `settings.json`, `AGENTS.md`,
 | `content/hooks/<lang>/hooks.json`, `global-hooks.json` | merged into `~/.claude/settings.json` | Global hooks |
 | `content/hooks/<lang>/project-hooks.json` | `~/.claude/project-hooks/<lang>.json` | Templates for `init-project.sh` |
 | `content/plugins/plugins.json` | merged into `~/.claude/settings.json` | Tracked plugins + marketplaces |
+| `content/mcp/servers.json` | merged into `~/.claude.json` (`mcpServers`) | Opt-in via `-m` (off by default) |
 | `scripts/<lang>/hooks/`, `scripts/<lang>/lib/` | `~/.claude/scripts/<lang>/...` | Hook runtime scripts |
 
 Hook handling details worth knowing:
@@ -133,6 +136,14 @@ Hook handling details worth knowing:
 - Plugins (like the global `CLAUDE.md`) are language-agnostic: they are
   merged on every install regardless of which languages you select, and
   uninstalling *any* language removes all tracked plugin entries.
+- `content/mcp/servers.json` merges into `~/.claude.json`'s `mcpServers` key
+  only when `-m` is passed — off by default, since `~/.claude.json` (unlike
+  `settings.json`) holds live user state such as OAuth tokens and project
+  trust. The merge is per-server: only `command`/`args`/`env` are copied,
+  existing entries are skipped unless `-f`, servers are filtered by the
+  `languages` you install, and a timestamped backup is written before the
+  first actual change in a run. Uninstall never touches `~/.claude.json`; it
+  only prints manual-removal hints for the tracked server names.
 
 ### Project-level hooks
 
@@ -167,17 +178,18 @@ detected) installs into `$CODEX_HOME` or `~/.codex`:
 | `content/plugins/codex-skills.json` | External skills shallow-cloned from their git repos into `~/.codex/skills/<name>/`. Each entry names a repo and the in-repo path of a directory containing `SKILL.md`. Language-agnostic (installed on every install, removed by uninstalling any language); entries are skipped with a warning when `git`/`jq` are missing, the clone fails, or the path has no `SKILL.md`. Existing skill dirs are only refreshed with `-f`. |
 | `content/codex/agents/*.toml` | `~/.codex/agents/<role>.toml` — custom subagent roles (`worker` on gpt-5.6-terra, `explorer` on gpt-5.6-luna) that override Codex's built-in roles so subagents never inherit the parent model. Language-agnostic (installed on every install, removed by uninstalling any language); existing files are only refreshed with `-f`. |
 | `content/codex/config.toml` | `[agents]` defaults (`default_subagent_model`) merged key-by-key into `~/.codex/config.toml`, with a timestamped backup; existing user keys win unless `-f`. Requires `uv`; if it's missing, the step is skipped with a warning. |
-| `content/mcp/servers.json` | `[mcp_servers.*]` merged into `~/.codex/config.toml`, with a timestamped backup of the existing file. Only servers tagged with a matching `languages` entry (plus untagged/common servers) are merged for the languages being installed. Requires `uv`; if it's missing, the MCP step is skipped with a warning and the entries can be added manually. |
+| `content/mcp/servers.json` | Opt-in via `-m` (off by default): `[mcp_servers.*]` merged into `~/.codex/config.toml`, with a timestamped backup of the existing file. Only servers tagged with a matching `languages` entry (plus untagged/common servers) are merged for the languages being installed. Requires `uv`; if it's missing, the MCP step is skipped with a warning and the entries can be added manually. |
 
-MCP servers are installed only when needed: each entry in
-`content/mcp/servers.json` may carry a `languages` tag, and only servers
-matching the languages you install (plus untagged/common servers) are merged.
-For example, `./scripts/install.sh --target codex node` merges
-`chrome-devtools` (tagged `node`), while `--target codex python` skips it.
-To add a server later, re-run the install with the language that needs it.
-For Claude Code, MCP servers are never auto-installed — copy the entries you
-need from `content/mcp/servers.json` into the `mcpServers` section of
-`~/.claude.json` yourself.
+MCP server installation is opt-in on both targets — pass `-m` to merge
+`content/mcp/servers.json` in; without it, no MCP servers are installed.
+Each entry may carry a `languages` tag, and only servers matching the
+languages you install (plus untagged/common servers) are merged. For
+example, `./scripts/install.sh -m --target codex node` merges
+`chrome-devtools` (tagged `node`) into `~/.codex/config.toml`'s
+`[mcp_servers.*]`, while `--target codex python` skips it. For Claude Code,
+`-m` merges the same servers into `~/.claude.json`'s `mcpServers` key
+instead. To add a server later, re-run the install with `-m` and the
+language that needs it.
 
 Codex has no slash-command concept and configures subagents through TOML
 role files rather than Markdown agents, so `content/agents/` and
