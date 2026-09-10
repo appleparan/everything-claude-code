@@ -88,5 +88,12 @@ test('uninstall --target codex dry-run plans removals but not config.toml', () =
   assert.strictEqual(fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8'), 'model = "test"\n', 'config.toml content must be untouched');
 });
 
+test('-m passes through the dispatcher to both targets without a getopts error', () => {
+  const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-dispatch-mcp-codex-'));
+  const res = run(['-n', '-m', '--target', 'all', 'common'], { CODEX_HOME: codexHome });
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.ok(res.stdout.includes('[mcp]'), 'expected a [mcp] section in the output');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

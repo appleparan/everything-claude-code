@@ -30,12 +30,16 @@ Categories installed:
              Project hooks (copied to project-hooks/ as templates)
   plugins/   Claude Code plugins (enabledPlugins + extraKnownMarketplaces
              merged into settings.json; auto-installed on startup)
+  mcp/       MCP servers (content/mcp/servers.json merged into
+             ~/.claude.json mcpServers; off by default, use -m)
 
 Options:
   -f    Force overwrite existing files
   -n    Dry run (show what would be copied without copying)
   -p    Prune orphaned files from previous installs (see .ecc-manifest);
         with no manifest yet, falls back to a git-history check
+  -m    Merge MCP servers from content/mcp/servers.json into
+        ~/.claude.json (off by default)
   -l    List available languages and exit
   -h    Show this help
 
@@ -183,16 +187,118 @@ merge_plugins() {
     echo "$content" > "$dest"
 }
 
+# jq filter for merging content/mcp/servers.json into ~/.claude.json's
+# mcpServers object. Main input is servers.json; --slurpfile dest reads the
+# existing ~/.claude.json (or an empty-object stand-in) as $dest[0] — never
+# via --argjson, since real ~/.claude.json files routinely exceed Linux's
+# ~128KB per-argv-string limit (Claude Code logs project history into it)
+# and would fail with "Argument list too long". --argjson langs/force stay
+# as-is; those values are tiny. Only command/args/env are copied —
+# description, languages, and _comments never reach the destination. Output
+# carries the full merged document plus the added/skipped server names so
+# the caller can report per-server ADD/SKIP lines. (Single line to avoid
+# multiline $var quoting issues in jq 1.7.)
+JQ_MERGE_MCP='.mcpServers as $servers | ($servers | to_entries | map(select((.value.languages == null) or (((.value.languages - $langs) | length) < (.value.languages | length))))) as $selected | ($dest[0].mcpServers // {}) as $existing | (reduce $selected[] as $s ({merged: $existing, added: [], skipped: []}; if ($existing | has($s.key)) and ($force | not) then .skipped += [$s.key] else (.merged[$s.key] = ($s.value | with_entries(select(.key as $k | (["command","args","env"] | index($k)) != null))) | .added += [$s.key]) end)) as $result | {config: ($dest[0] + {mcpServers: $result.merged}), added: $result.added, skipped: $result.skipped}'
+
+# Merge content/mcp/servers.json into ~/.claude.json's mcpServers key.
+# Opt-in only (see -m): unlike settings.json, ~/.claude.json holds live user
+# state (OAuth tokens, project trust) that install must never touch by
+# default. Merge is per-server: existing entries survive unless -f, and a
+# timestamped backup is written before the first actual change in a run (a
+# run that only skips must stay byte-for-byte idempotent).
+merge_mcp_servers() {
+    local src="${CONTENT_ROOT}/mcp/servers.json"
+    local dest="${HOME}/.claude.json"
+
+    [[ -f "$src" ]] || return 0
+
+    echo ""
+    echo -e "${CYAN}[mcp]${NC}"
+
+    if ! command -v jq &>/dev/null; then
+        log_warn "jq not found: cannot merge MCP servers into ~/.claude.json. Skipping."
+        jq_install_hint
+        skipped=$((skipped + 1))
+        return
+    fi
+
+    # Read the destination through a file argument (--slurpfile), never a
+    # command-line argument (see the JQ_MERGE_MCP comment above). A present
+    # but invalid ~/.claude.json must warn and skip the merge rather than
+    # abort the whole install under `set -e`. When no ~/.claude.json exists
+    # yet, --slurpfile still needs a real file — a plain '{}' temp file, not
+    # a `<(...)` process substitution assigned to a variable, since bash may
+    # close that FD before the later jq invocation reads it.
+    local dest_source dest_tmp=""
+    if [[ -f "$dest" ]]; then
+        if ! jq empty "$dest" &>/dev/null; then
+            log_warn "~/.claude.json is not valid JSON. Skipping MCP merge."
+            skipped=$((skipped + 1))
+            return
+        fi
+        dest_source="$dest"
+    else
+        dest_tmp=$(mktemp)
+        echo '{}' > "$dest_tmp"
+        dest_source="$dest_tmp"
+    fi
+
+    local langs_json
+    langs_json=$(printf '%s\n' "${LANGUAGES[@]}" | jq -R . | jq -s .)
+
+    local force_json="false"
+    $FORCE && force_json="true"
+
+    local result
+    result=$(jq --slurpfile dest "$dest_source" --argjson langs "$langs_json" --argjson force "$force_json" \
+        "$JQ_MERGE_MCP" "$src")
+    [[ -n "$dest_tmp" ]] && rm -f "$dest_tmp"
+
+    local added skipped_names
+    added=$(echo "$result" | jq -r '.added[]')
+    skipped_names=$(echo "$result" | jq -r '.skipped[]')
+
+    while IFS= read -r name; do
+        [[ -n "$name" ]] || continue
+        if $DRY_RUN; then
+            log_dry "mcp/${name}" "~/.claude.json (mcpServers)"
+        else
+            log_copy "mcp/${name}" "~/.claude.json (mcpServers)"
+        fi
+        copied=$((copied + 1))
+    done <<< "$added"
+
+    while IFS= read -r name; do
+        [[ -n "$name" ]] || continue
+        log_skip "~/.claude.json (mcpServers).${name}"
+        skipped=$((skipped + 1))
+    done <<< "$skipped_names"
+
+    $DRY_RUN && return
+    [[ -z "$added" ]] && return
+
+    if [[ -f "$dest" ]]; then
+        local backup
+        backup="${dest}.bak.$(date +%s)"
+        cp "$dest" "$backup"
+        log_info "backup: ${backup#"$HOME"/}"
+    fi
+
+    echo "$result" | jq '.config' > "$dest"
+}
+
 # Parse options
 FORCE=false
 DRY_RUN=false
 PRUNE=false
+MERGE_MCP=false
 
-while getopts "fnplh" opt; do
+while getopts "fnplhm" opt; do
     case $opt in
         f) FORCE=true ;;
         n) DRY_RUN=true ;;
         p) PRUNE=true ;;
+        m) MERGE_MCP=true ;;
         l)
             echo "Available languages:"
             discover_languages | while read -r lang; do
@@ -385,6 +491,17 @@ fi
 # Runs after the hooks merge so a freshly created settings.json is extended,
 # not overwritten.
 merge_plugins
+
+# Merge MCP servers (content/mcp/servers.json) into ~/.claude.json. Opt-in
+# only: see merge_mcp_servers() above for why ~/.claude.json is never
+# touched without -m.
+if $MERGE_MCP; then
+    merge_mcp_servers
+else
+    echo ""
+    echo -e "${CYAN}[mcp]${NC}"
+    log_info "skipped (pass -m to merge content/mcp/servers.json into ~/.claude.json)"
+fi
 
 # Smoke test: every script path referenced by hook commands in settings.json
 # must exist, otherwise those hooks are silent no-ops at runtime.

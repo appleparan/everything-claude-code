@@ -8,7 +8,7 @@
     }
   },
   "_comments": {
-    "usage": "Copy the servers you need to your ~/.claude.json mcpServers section",
+    "usage": "Off by default. Run ./scripts/install.sh -m <language>... to merge these servers into ~/.claude.json (Claude) or ~/.codex/config.toml (Codex), or copy the ones you need manually.",
     "disabling": "Use disabledMcpServers array in project config to disable per-project",
     "context_warning": "Keep under 10 MCPs enabled to preserve context window",
     "languages": "Optional list of language domains a server belongs to (e.g. [\"node\"]). A server without a languages field is treated as common and is installed for every language selection; one with a languages field is installed only when its list intersects the languages being installed."

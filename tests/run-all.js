@@ -25,6 +25,7 @@ const testFiles = [
   'scripts/install-dispatcher.test.js',
   'scripts/install-prune.test.js',
   'scripts/install-plugins.test.js',
+  'scripts/install-mcp.test.js',
   'scripts/jq-missing.test.js',
   'scripts/codex-adapter.test.js',
   'scripts/codex-external-skills.test.js',
