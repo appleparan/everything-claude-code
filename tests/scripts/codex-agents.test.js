@@ -36,7 +36,20 @@ const EXPLORER_TOML = [
 
 const CONFIG_FRAGMENT = ['[agents]', 'default_subagent_model = "gpt-5.6-terra"', ''].join('\n');
 
-function writeFixtureContent(dir, { withCodexAgents = true, withConfigFragment = true } = {}) {
+const MCP_SERVERS = {
+  mcpServers: {
+    'common-tool': {
+      command: 'bunx',
+      args: ['common-tool-mcp@latest'],
+      description: 'Common tool, installed for every language'
+    }
+  }
+};
+
+function writeFixtureContent(
+  dir,
+  { withCodexAgents = true, withConfigFragment = true, servers = MCP_SERVERS } = {}
+) {
   const w = (rel, content) => {
     const full = path.join(dir, rel);
     fs.mkdirSync(path.dirname(full), { recursive: true });
@@ -44,7 +57,7 @@ function writeFixtureContent(dir, { withCodexAgents = true, withConfigFragment =
   };
   w('content/instructions/global.md', '# Global\n');
   w('content/rules/common/coding-style.md', '# Coding Style\n');
-  w('content/mcp/servers.json', JSON.stringify({ mcpServers: {} }, null, 2) + '\n');
+  w('content/mcp/servers.json', JSON.stringify(servers, null, 2) + '\n');
   if (withCodexAgents) {
     w('content/codex/agents/worker.toml', WORKER_TOML);
     w('content/codex/agents/explorer.toml', EXPLORER_TOML);
@@ -190,6 +203,38 @@ if (!hasUv) {
     const out = fs.readFileSync(configPath, 'utf8');
     assert.ok(out.includes('[agents]'));
     assert.ok(out.includes('default_subagent_model = "gpt-5.6-terra"'));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 7. MCP merge is opt-in via -m; [agents] defaults merge regardless
+// ---------------------------------------------------------------------------
+if (!hasUv) {
+  console.log('  SKIP  MCP opt-in tests (uv not available)');
+} else {
+  test('install without -m: no [mcp_servers.*] but [agents] defaults present', () => {
+    const repo = buildRepo();
+    const codexHome = mkCodexHome();
+    const res = runScript(repo, 'install.sh', ['common'], codexHome);
+    assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+    const configPath = path.join(codexHome, 'config.toml');
+    assert.ok(fs.existsSync(configPath), 'config.toml must be created for [agents] defaults');
+    const out = fs.readFileSync(configPath, 'utf8');
+    assert.ok(!out.includes('[mcp_servers.'), '[mcp_servers.*] must not appear without -m');
+    assert.ok(out.includes('[agents]'));
+    assert.ok(out.includes('default_subagent_model = "gpt-5.6-terra"'));
+    assert.ok(/-m/.test(res.stdout), 'expected output to mention -m');
+  });
+
+  test('install -m merges [mcp_servers.*] into config.toml', () => {
+    const repo = buildRepo();
+    const codexHome = mkCodexHome();
+    const res = runScript(repo, 'install.sh', ['-m', 'common'], codexHome);
+    assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+    const configPath = path.join(codexHome, 'config.toml');
+    const out = fs.readFileSync(configPath, 'utf8');
+    assert.ok(out.includes('[mcp_servers.common-tool]'), 'expected the common-tool server to be merged');
+    assert.ok(out.includes('[agents]'));
   });
 }
 
