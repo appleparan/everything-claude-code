@@ -188,14 +188,17 @@ merge_plugins() {
 }
 
 # jq filter for merging content/mcp/servers.json into ~/.claude.json's
-# mcpServers object. Main input is servers.json; --argjson dest is the
-# existing ~/.claude.json (or {}), --argjson langs the installed languages,
-# --argjson force whether existing entries may be overwritten. Only
-# command/args/env are copied — description, languages, and _comments never
-# reach the destination. Output carries the full merged document plus the
-# added/skipped server names so the caller can report per-server ADD/SKIP
-# lines. (Single line to avoid multiline $var quoting issues in jq 1.7.)
-JQ_MERGE_MCP='.mcpServers as $servers | ($servers | to_entries | map(select((.value.languages == null) or (((.value.languages - $langs) | length) < (.value.languages | length))))) as $selected | ($dest.mcpServers // {}) as $existing | (reduce $selected[] as $s ({merged: $existing, added: [], skipped: []}; if ($existing | has($s.key)) and ($force | not) then .skipped += [$s.key] else (.merged[$s.key] = ($s.value | with_entries(select(.key as $k | (["command","args","env"] | index($k)) != null))) | .added += [$s.key]) end)) as $result | {config: ($dest + {mcpServers: $result.merged}), added: $result.added, skipped: $result.skipped}'
+# mcpServers object. Main input is servers.json; --slurpfile dest reads the
+# existing ~/.claude.json (or an empty-object stand-in) as $dest[0] — never
+# via --argjson, since real ~/.claude.json files routinely exceed Linux's
+# ~128KB per-argv-string limit (Claude Code logs project history into it)
+# and would fail with "Argument list too long". --argjson langs/force stay
+# as-is; those values are tiny. Only command/args/env are copied —
+# description, languages, and _comments never reach the destination. Output
+# carries the full merged document plus the added/skipped server names so
+# the caller can report per-server ADD/SKIP lines. (Single line to avoid
+# multiline $var quoting issues in jq 1.7.)
+JQ_MERGE_MCP='.mcpServers as $servers | ($servers | to_entries | map(select((.value.languages == null) or (((.value.languages - $langs) | length) < (.value.languages | length))))) as $selected | ($dest[0].mcpServers // {}) as $existing | (reduce $selected[] as $s ({merged: $existing, added: [], skipped: []}; if ($existing | has($s.key)) and ($force | not) then .skipped += [$s.key] else (.merged[$s.key] = ($s.value | with_entries(select(.key as $k | (["command","args","env"] | index($k)) != null))) | .added += [$s.key]) end)) as $result | {config: ($dest[0] + {mcpServers: $result.merged}), added: $result.added, skipped: $result.skipped}'
 
 # Merge content/mcp/servers.json into ~/.claude.json's mcpServers key.
 # Opt-in only (see -m): unlike settings.json, ~/.claude.json holds live user
@@ -219,9 +222,25 @@ merge_mcp_servers() {
         return
     fi
 
-    local dest_json="{}"
+    # Read the destination through a file argument (--slurpfile), never a
+    # command-line argument (see the JQ_MERGE_MCP comment above). A present
+    # but invalid ~/.claude.json must warn and skip the merge rather than
+    # abort the whole install under `set -e`. When no ~/.claude.json exists
+    # yet, --slurpfile still needs a real file — a plain '{}' temp file, not
+    # a `<(...)` process substitution assigned to a variable, since bash may
+    # close that FD before the later jq invocation reads it.
+    local dest_source dest_tmp=""
     if [[ -f "$dest" ]]; then
-        dest_json=$(cat "$dest")
+        if ! jq empty "$dest" &>/dev/null; then
+            log_warn "~/.claude.json is not valid JSON. Skipping MCP merge."
+            skipped=$((skipped + 1))
+            return
+        fi
+        dest_source="$dest"
+    else
+        dest_tmp=$(mktemp)
+        echo '{}' > "$dest_tmp"
+        dest_source="$dest_tmp"
     fi
 
     local langs_json
@@ -231,8 +250,9 @@ merge_mcp_servers() {
     $FORCE && force_json="true"
 
     local result
-    result=$(jq --argjson dest "$dest_json" --argjson langs "$langs_json" --argjson force "$force_json" \
+    result=$(jq --slurpfile dest "$dest_source" --argjson langs "$langs_json" --argjson force "$force_json" \
         "$JQ_MERGE_MCP" "$src")
+    [[ -n "$dest_tmp" ]] && rm -f "$dest_tmp"
 
     local added skipped_names
     added=$(echo "$result" | jq -r '.added[]')

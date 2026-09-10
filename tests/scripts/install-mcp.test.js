@@ -304,5 +304,47 @@ test('uninstall leaves ~/.claude.json unchanged and prints manual-removal info',
   assert.ok(/left untouched/.test(res.stdout), 'expected an explanation that ~/.claude.json is left untouched');
 });
 
+// ---------------------------------------------------------------------------
+// 10. A large ~/.claude.json (beyond Linux's ~128KB per-argv-string limit)
+// must not blow out `--argjson` with "Argument list too long"
+// ---------------------------------------------------------------------------
+test('-m node handles a large pre-seeded ~/.claude.json without argument-list errors', () => {
+  const repo = buildRepo();
+  const home = mkHome();
+  writeClaudeJson(home, {
+    pad: 'x'.repeat(300000),
+    mcpServers: { 'user-tool': { command: 'mine' } }
+  });
+
+  const res = runScript(repo, 'install.sh', ['-m', 'node'], home);
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.ok(!/Argument list too long/.test(res.stderr), 'must not hit the argv size limit');
+
+  const doc = readClaudeJson(home);
+  assert.strictEqual(doc.pad.length, 300000, 'large padding key must survive the merge');
+  assert.deepStrictEqual(doc.mcpServers['user-tool'], { command: 'mine' }, 'untracked server must survive');
+  assert.ok(doc.mcpServers['common-tool'], 'common-tool must be added');
+  assert.ok(doc.mcpServers['node-tool'], 'node-tool must be added');
+});
+
+// ---------------------------------------------------------------------------
+// 11. Invalid JSON in ~/.claude.json: warn, skip, never touch the file, and
+// never abort the install under set -e
+// ---------------------------------------------------------------------------
+test('-m node on invalid ~/.claude.json warns, skips, and leaves the file untouched', () => {
+  const repo = buildRepo();
+  const home = mkHome();
+  fs.writeFileSync(claudeJsonPath(home), '{ not valid json');
+  const before = fs.readFileSync(claudeJsonPath(home), 'utf8');
+
+  const res = runScript(repo, 'install.sh', ['-m', 'node'], home);
+  assert.strictEqual(res.status, 0, res.stderr);
+
+  const after = fs.readFileSync(claudeJsonPath(home), 'utf8');
+  assert.strictEqual(after, before, 'invalid ~/.claude.json must not be modified');
+  assert.ok(/not valid JSON/.test(res.stdout + res.stderr), 'expected a not-valid-JSON warning');
+  assert.strictEqual(listBackups(home).length, 0, 'invalid JSON must not trigger a backup');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);
