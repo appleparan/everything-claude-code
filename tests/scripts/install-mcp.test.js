@@ -50,6 +50,8 @@ function writeFixtureContent(dir, { withServers = true } = {}) {
   };
   w('content/instructions/global.md', '# Global\n');
   w('content/rules/common/coding-style.md', '# Coding Style\n');
+  w('content/rules/node/coding-style.md', '# Node Coding Style\n');
+  w('content/rules/python/coding-style.md', '# Python Coding Style\n');
   if (withServers) {
     w('content/mcp/servers.json', JSON.stringify(SERVERS_JSON, null, 2) + '\n');
   }

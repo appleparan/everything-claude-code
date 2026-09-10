@@ -19,14 +19,17 @@ Install shared configuration into Codex (\$CODEX_HOME or ~/.codex):
                      skills tracked in content/plugins/codex-skills.json
   agents/            Custom subagent roles from content/codex/agents/
                      (e.g. worker/explorer model overrides)
-  config.toml        [mcp_servers.*] entries merged, plus [agents] defaults
-                     from content/codex/config.toml (backup created)
+  config.toml        [agents] defaults from content/codex/config.toml always
+                     merged (when uv is available); [mcp_servers.*] entries
+                     merged only with -m (backup created before either write)
 
 Options:
   -f    Force overwrite existing files / MCP entries
   -n    Dry run
   -p    Prune orphaned files from previous installs (see .ecc-manifest);
         with no manifest yet, falls back to a git-history check
+  -m    Merge MCP servers from content/mcp/servers.json into config.toml
+        (off by default)
   -l    List available languages and exit
   -h    Show this help
 EOF
@@ -35,11 +38,13 @@ EOF
 FORCE=false
 DRY_RUN=false
 PRUNE=false
-while getopts "fnplh" opt; do
+MERGE_MCP=false
+while getopts "fnplhm" opt; do
     case $opt in
         f) FORCE=true ;;
         n) DRY_RUN=true ;;
         p) PRUNE=true ;;
+        m) MERGE_MCP=true ;;
         l) discover_languages; exit 0 ;;
         h) usage; exit 0 ;;
         *) usage; exit 1 ;;
@@ -219,30 +224,41 @@ if [[ -d "$agents_src_dir" ]]; then
 fi
 echo ""
 
-# 4. MCP servers + [agents] defaults → config.toml (key-scoped merge, backup
-# created)
-echo -e "${CYAN}[mcp]${NC}"
-if command -v uv &>/dev/null; then
-    merge_args=(--config "${CODEX_DIR}/config.toml" --servers "${CONTENT_ROOT}/mcp/servers.json")
-    merge_args+=(--languages "${LANGUAGES[@]}")
-    $FORCE && merge_args+=(--force)
-    $DRY_RUN && merge_args+=(--dry-run)
-    uv run --with tomlkit python3 "${SCRIPT_DIR}/merge-mcp.py" "${merge_args[@]}" \
-        | sed 's/^/  /'
-
-    config_fragment="${CONTENT_ROOT}/codex/config.toml"
-    if [[ -f "$config_fragment" ]]; then
-        echo -e "${CYAN}[config]${NC}"
+# 4. [agents] defaults → config.toml. Always merged when uv is available;
+# this is independent of -m (MERGE_MCP only gates the [mcp] step below).
+config_fragment="${CONTENT_ROOT}/codex/config.toml"
+if [[ -f "$config_fragment" ]]; then
+    echo -e "${CYAN}[config]${NC}"
+    if command -v uv &>/dev/null; then
         cfg_args=(--config "${CODEX_DIR}/config.toml" --fragment "$config_fragment")
         $FORCE && cfg_args+=(--force)
         $DRY_RUN && cfg_args+=(--dry-run)
         uv run --with tomlkit python3 "${SCRIPT_DIR}/merge-config.py" "${cfg_args[@]}" \
             | sed 's/^/  /'
+    else
+        log_warn "uv not found; skipping [agents] defaults merge into config.toml"
+        log_warn "Add [agents] defaults from content/codex/config.toml manually"
+    fi
+fi
+
+# 5. MCP servers → config.toml (key-scoped merge, backup created). Opt-in
+# only via -m: config.toml is user state and MCP servers are not installed
+# by default.
+echo -e "${CYAN}[mcp]${NC}"
+if $MERGE_MCP; then
+    if command -v uv &>/dev/null; then
+        merge_args=(--config "${CODEX_DIR}/config.toml" --servers "${CONTENT_ROOT}/mcp/servers.json")
+        merge_args+=(--languages "${LANGUAGES[@]}")
+        $FORCE && merge_args+=(--force)
+        $DRY_RUN && merge_args+=(--dry-run)
+        uv run --with tomlkit python3 "${SCRIPT_DIR}/merge-mcp.py" "${merge_args[@]}" \
+            | sed 's/^/  /'
+    else
+        log_warn "uv not found; skipping MCP merge into config.toml"
+        log_warn "Add servers from content/mcp/servers.json manually"
     fi
 else
-    log_warn "uv not found; skipping MCP merge into config.toml"
-    log_warn "Add servers from content/mcp/servers.json manually"
-    log_warn "Add [agents] defaults from content/codex/config.toml manually"
+    log_info "skipped (pass -m to merge content/mcp/servers.json into config.toml)"
 fi
 
 # Orphan pruning + manifest write. run_prune lists/deletes based on the old

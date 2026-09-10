@@ -26,6 +26,8 @@ Categories removed:
   hooks/     Global hooks (settings.json) and project hook templates
   plugins/   Tracked plugin entries (enabledPlugins + extraKnownMarketplaces
              in settings.json)
+  mcp/       Not removed — ~/.claude.json is user state; manual-removal
+             hints are printed instead
 
 Note: hooks and plugins in settings.json are global, not per-language —
 uninstalling ANY language removes the hooks key and ALL tracked plugin
@@ -261,6 +263,22 @@ if [[ -f "$plugins_src" ]]; then
         removed=$((removed + 1))
     else
         log_info "jq not found: leaving settings.json untouched — remove tracked plugin entries manually"
+    fi
+    echo ""
+fi
+
+# [mcp]: ~/.claude.json is user state (OAuth tokens, project trust) and is
+# never modified by install (only with -m) or uninstall — print manual
+# removal hints for the servers this repo tracks instead.
+mcp_src="${CONTENT_ROOT}/mcp/servers.json"
+if [[ -f "$mcp_src" ]]; then
+    echo -e "${CYAN}[mcp]${NC}"
+    log_info "~/.claude.json is user state and is left untouched."
+    if command -v jq &>/dev/null; then
+        while IFS= read -r name; do
+            [[ -n "$name" ]] || continue
+            log_info "remove mcpServers.${name} from ~/.claude.json manually if unwanted"
+        done < <(jq -r '.mcpServers | keys[]' "$mcp_src")
     fi
     echo ""
 fi
