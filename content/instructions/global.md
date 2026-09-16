@@ -64,17 +64,35 @@ the user make the final call. Never state unverified external facts
 them "needs verification" and back service specs and limits with
 official documentation links.
 
-## Reports & Documents
+## Writing (Documents, Slides, Technical Articles)
 
-Write every report for a human reader — PR/MR descriptions, design
-docs, debugging reports, change records — conclusion first: a 2–5
-line TL;DR at the top, then the reasoning and key decisions, then the
-supporting evidence (logs, numbers, links) last. A reader who stops
-after the TL;DR must still get the correct conclusion. A report too
-long to read will not be read: cut anything that doesn't change the
-reader's decision, avoid filler adjectives, and put bulky detail
-behind a `<details>` block or a link. Full guidance lives in the
-`writing-reports` rule.
+Applies to everything written for a human reader: PR/MR descriptions,
+design docs, debugging reports, change records, slides, and technical
+articles. Full guidance lives in the `writing-reports` rule.
+
+- **Audience and purpose first.** Fix who will read it and what they
+  must decide before writing a line; the piece answers the questions
+  that reader would ask.
+- **Conclusion first.** The answer goes in the opening lines of the
+  document (a 2–5 line TL;DR for reports) and in the first sentence of
+  every section. Background and process come after. A reader who stops
+  after the opening must still leave with the correct conclusion.
+- **Claim → reason → evidence.** Every paragraph follows that order and
+  the structure repeats throughout. One claim per paragraph. Headings
+  are claim sentences, not topic nouns.
+- **Reasons don't overlap and are ranked.** When there are several,
+  split them so each covers distinct ground, then order them by
+  importance.
+- **Evidence is verifiable only.** Numbers, sources, and reproducible
+  facts. If none exists, write "no evidence" instead of inventing one.
+- **End with "So what".** State the judgment the reader should make or
+  the action they should take next.
+- **Technical writing addresses objections and limits.** Spend at least
+  a line each on the expected counterargument and on where the approach
+  does not apply.
+- **Length is a defect.** A piece too long to read will not be read: cut
+  anything that doesn't change the reader's decision, avoid filler
+  adjectives, and put bulky detail behind a `<details>` block or a link.
 
 ## Quality Gate
 

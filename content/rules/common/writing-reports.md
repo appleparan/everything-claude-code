@@ -1,8 +1,41 @@
-# Report Writing
+# Writing Reports and Documents
 
 Applies to anything written for a human reader: PR/MR descriptions,
 design docs, debugging reports, `docs/changes/` records, review
-summaries, and end-of-task reports in chat.
+summaries, end-of-task reports in chat, slides, and technical
+articles.
+
+## Principles
+
+These hold for every document type; the sections below apply them to
+reports.
+
+1. **Audience and purpose first.** Before writing, fix who will read
+   the piece and what they must decide or do with it. Write it as the
+   answers to the questions that reader would ask, in the order they
+   would ask them.
+2. **Conclusion first, everywhere.** The answer goes in the opening
+   lines of the document and in the first sentence of every section;
+   background and process follow. Someone who reads only the openings
+   still gets the right conclusion.
+3. **Claim → reason → evidence.** Every paragraph follows that order,
+   and the structure repeats from paragraph to paragraph so the reader
+   never has to hunt for the point.
+4. **One claim per paragraph, headings as claims.** A paragraph that
+   makes two claims becomes two paragraphs. A heading is a full claim
+   sentence ("Caching cuts p99 latency by half"), not a topic noun
+   ("Caching").
+5. **Reasons don't overlap and are ranked.** When several reasons
+   support a claim, split them so each covers distinct ground, then
+   order them by importance so the reader can stop early.
+6. **Evidence is verifiable only.** Numbers, sources, and reproducible
+   facts count; impressions and adjectives do not. When no evidence
+   exists, write "no evidence" rather than inventing or implying one.
+7. **End with "So what".** Close by stating the judgment the reader
+   should make or the action they should take next.
+8. **Technical writing addresses objections and limits.** Spend at
+   least a line each on the strongest expected counterargument and on
+   the conditions under which the approach does not apply.
 
 ## Structure: Conclusion First
 
@@ -47,3 +80,9 @@ defect, not thoroughness.
 - **Debugging report**: root cause and fix first, then the hypothesis
   trail (including ruled-out hypotheses and what eliminated them),
   then the raw evidence.
+- **Slides**: one claim per slide, written as the slide title; the
+  body holds only the reason and evidence for that claim. The final
+  slide is the "So what".
+- **Technical article**: the claim and its So what in the opening
+  paragraph, then reasons in importance order with evidence under
+  each, then objections and limits before the close.
