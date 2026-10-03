@@ -17,7 +17,8 @@
     "pr-review-toolkit@claude-plugins-official": true,
     "diagram-design@diagram-design": true,
     "humanize-korean@im-not-ai": true,
-    "humanizer@humanizer": true
+    "humanizer@humanizer": true,
+    "simple-english@simple-english": true
   },
   "extraKnownMarketplaces": {
     "openai-codex": {
@@ -42,6 +43,12 @@
       "source": {
         "source": "github",
         "repo": "blader/humanizer"
+      }
+    },
+    "simple-english": {
+      "source": {
+        "source": "github",
+        "repo": "AminBlg/SimpleEnglish"
       }
     }
   },
