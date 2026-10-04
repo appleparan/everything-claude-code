@@ -20,6 +20,7 @@ function run(args, envOverrides = {}) {
     ...envOverrides
   };
   delete env.CODEX_HOME;
+  delete env.PI_CODING_AGENT_DIR;
   Object.assign(env, envOverrides);
   const res = spawnSync('bash', [installSh, ...args], { env, encoding: 'utf8' });
   return { ...res, home };
@@ -119,6 +120,7 @@ function makeFakeRepo(targets) {
 function runFake(dir, script, args) {
   const env = { ...process.env, PATH: '/usr/bin:/bin', HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-h-')) };
   delete env.CODEX_HOME;
+  delete env.PI_CODING_AGENT_DIR;
   return spawnSync('bash', [path.join(dir, 'scripts', script), ...args], { env, encoding: 'utf8' });
 }
 
@@ -133,10 +135,48 @@ test('unknown --target error lists every discovered target', () => {
   }
 });
 
-test('real unknown --target error lists claude and codex', () => {
+test('real unknown --target error lists claude, codex and pi', () => {
   const res = run(['-n', '--target', 'bogus', 'common']);
   const out = res.stdout + res.stderr;
-  assert.ok(out.includes('claude') && out.includes('codex'), out);
+  assert.ok(out.includes('claude') && out.includes('codex') && out.includes('pi'), out);
+});
+
+test('--target pi dry-run plans AGENTS.md, prompts, agents and extensions', () => {
+  const piDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-pi-'));
+  const res = run(['-n', '--target', 'pi', 'common'], { PI_CODING_AGENT_DIR: piDir });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  for (const s of ['AGENTS.md', '[prompts]', '[agents]', 'extensions/ecc-safety/']) {
+    assert.ok(res.stdout.includes(s), `expected ${s}: ${res.stdout}`);
+  }
+  assert.ok(!res.stdout.includes('CLAUDE.md'));
+});
+
+test('--target pi without pi fails', () => {
+  const res = run(['-n', '--target', 'pi', 'common']);
+  assert.notStrictEqual(res.status, 0);
+  assert.ok((res.stdout + res.stderr).includes('pi not detected'));
+});
+
+test('default target all skips pi with INFO when pi is absent', () => {
+  const res = run(['-n', 'common']);
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.ok(res.stdout.includes('Pi not detected; skipping pi target'), res.stdout);
+});
+
+test('target all with -m installs pi when detected (-m ignored)', () => {
+  const piDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-pi-'));
+  const res = run(['-n', '-m', '--target', 'all', 'common'], { PI_CODING_AGENT_DIR: piDir });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(res.stdout.includes('extensions/ecc-safety/'), res.stdout);
+});
+
+test('uninstall --target pi dry-run plans removals', () => {
+  const piDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-pi-un-'));
+  const uninstallSh = path.join(repoRoot, 'scripts', 'uninstall.sh');
+  const env = { ...process.env, HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-h-')), PI_CODING_AGENT_DIR: piDir, PATH: '/usr/bin:/bin' };
+  const res = spawnSync('bash', [uninstallSh, '-n', '--target', 'pi', 'common'], { env, encoding: 'utf8' });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(res.stdout.includes('AGENTS.md'), res.stdout);
 });
 
 test('--target <discovered name> runs only that target', () => {
