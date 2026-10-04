@@ -39,12 +39,6 @@ Options:
   -n    Dry run
   -p    Prune orphaned files from previous installs (see .ecc-manifest);
         with no manifest yet, falls back to a git-history check
-  -P <profile>
-        Pin agent models from a profile in content/targets/pi/models.json
-        (each agent's model: tier becomes the profile's exact model ID).
-        Default: model: lines are removed and subagents inherit the parent's
-        model, recommended when you switch models often. Unknown profile:
-        exit 1 before any write.
   -m    Accepted and ignored (pi has no MCP support here); lets
         'install.sh -m --target all' pass the flag to every target
   -l    List available languages and exit
@@ -55,14 +49,12 @@ EOF
 FORCE=false
 DRY_RUN=false
 PRUNE=false
-PROFILE=""
-while getopts "fnplhmP:" opt; do
+while getopts "fnplhm" opt; do
     case $opt in
         f) FORCE=true ;;
         n) DRY_RUN=true ;;
         p) PRUNE=true ;;
         m) ;;
-        P) PROFILE="$OPTARG" ;;
         l) discover_languages; exit 0 ;;
         h) usage; exit 0 ;;
         *) usage; exit 1 ;;
@@ -88,11 +80,6 @@ done
 if ! target_is_available; then
     echo -e "${RED}Error: pi not detected (set PI_CODING_AGENT_DIR, create ~/.pi, or install pi)${NC}"
     exit 1
-fi
-
-# Resolve the profile before any write so an unknown name exits cleanly.
-if [[ -n "$PROFILE" ]]; then
-    pi_load_profile "$PROFILE" || exit 1
 fi
 
 if [[ -n "${PI_CODING_AGENT_DIR:-}" ]]; then
@@ -174,11 +161,7 @@ echo ""
 # their tools: line converted; worker/scout are language-agnostic like codex
 # roles, installed every time and kept out of the per-language manifest.
 echo -e "${CYAN}[agents]${NC}"
-if [[ -n "$PROFILE" ]]; then
-    log_info "agent models pinned from profile '${PROFILE}' (content/targets/pi/models.json)"
-else
-    log_info "agent model: lines removed; subagents inherit the parent model (pin per tier with -P <profile>, see content/targets/pi/models.json)"
-fi
+log_info "agent model: lines removed; subagents inherit the model chosen in pi"
 for lang in "${LANGUAGES[@]}"; do
     agents_dir="${CONTENT_ROOT}/agents/${lang}"
     [[ -d "$agents_dir" ]] || continue

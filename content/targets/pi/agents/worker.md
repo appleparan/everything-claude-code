@@ -2,7 +2,6 @@
 name: worker
 description: Implementation subagent for well-specified coding tasks such as edits, tests, mechanical refactors, and build fixes. The parent keeps planning, design decisions, and review.
 tools: read, bash, edit, write, grep, find, ls
-model: sonnet
 ---
 
 You are an implementation worker spawned by a higher-tier parent agent.

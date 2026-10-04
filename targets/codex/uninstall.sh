@@ -29,10 +29,9 @@ EOF
 }
 
 DRY_RUN=false
-while getopts "nlhP:" opt; do
+while getopts "nlh" opt; do
     case $opt in
         n) DRY_RUN=true ;;
-        P) ;; # pi-only model profile: accepted and ignored
         l) discover_languages; exit 0 ;;
         h) usage; exit 0 ;;
         *) usage; exit 1 ;;
