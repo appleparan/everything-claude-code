@@ -13,6 +13,7 @@
 # Unknown tools are reported on stderr as "<tool>" lines.
 # shellcheck disable=SC2016
 PI_AGENT_AWK='
+function out(s) { printf "%s%s\n", s, cr }
 function map(t) {
     if (t == "Read") return "read"
     if (t == "Grep") return "grep"
@@ -23,8 +24,9 @@ function map(t) {
     if (t == "read" || t == "grep" || t == "find" || t == "bash" || t == "edit" || t == "write" || t == "ls") return t
     return ""
 }
-NR == 1 && $0 == "---" { infm = 1; print; next }
-infm && $0 == "---" { infm = 0; print; next }
+{ cr = ""; if (sub(/\r$/, "")) cr = "\r" }
+NR == 1 && $0 == "---" { infm = 1; out($0); next }
+infm && $0 == "---" { infm = 0; out($0); next }
 infm && $0 ~ /^model:/ { next }
 infm && $0 ~ /^tools:/ {
     line = $0
@@ -32,17 +34,17 @@ infm && $0 ~ /^tools:/ {
     gsub(/\[/, "", line); gsub(/\]/, "", line); gsub(/"/, "", line); gsub(q, "", line)
     gsub(/[ \t\r]/, "", line)
     n = split(line, parts, ",")
-    out = ""
+    tl = ""
     for (i = 1; i <= n; i++) {
         if (parts[i] == "") continue
         m = map(parts[i])
         if (m == "") { print parts[i] > "/dev/stderr"; continue }
-        out = (out == "") ? m : out ", " m
+        tl = (tl == "") ? m : tl ", " m
     }
-    print "tools: " out
+    out("tools: " tl)
     next
 }
-{ print }
+{ out($0) }
 '
 
 # Prints the converted agent on stdout; dropped tools go to stderr, one per line.

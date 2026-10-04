@@ -68,7 +68,7 @@ if [[ "$TARGET" == "all" ]]; then
         if target_detected "$t"; then
             "${REPO_ROOT}/targets/${t}/install.sh" "${PASS_ARGS[@]:-}"
         else
-            label="$(printf '%s' "${t:0:1}" | tr '[:lower:]' '[:upper:]')${t:1}"
+            label="$(target_label "$t")"
             log_info "${label} not detected; skipping ${t} target"
         fi
     done

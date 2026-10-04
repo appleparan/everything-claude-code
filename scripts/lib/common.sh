@@ -8,6 +8,7 @@ CONTENT_ROOT="${REPO_ROOT}/content"
 CLAUDE_DIR="${HOME}/.claude"
 CODEX_DIR="${CODEX_HOME:-${HOME}/.codex}"
 PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+OPENCODE_DIR="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/opencode}"
 CATEGORIES=(agents skills commands rules)
 
 # Colors
@@ -83,6 +84,19 @@ target_summary() {
     # shellcheck disable=SC1090
     ( source "${REPO_ROOT}/targets/$1/target.sh"
       if declare -F target_description >/dev/null; then target_description; fi )
+}
+
+# Human-readable name of target $1 for messages: target_display_name from its
+# target.sh when defined, else the target directory name with a capital.
+target_label() {
+    local name
+    # shellcheck disable=SC1090
+    name=$( source "${REPO_ROOT}/targets/$1/target.sh"
+      if declare -F target_display_name >/dev/null; then target_display_name; fi )
+    if [[ -z "$name" ]]; then
+        name="$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]')${1:1}"
+    fi
+    echo "$name"
 }
 
 # Copy a single file

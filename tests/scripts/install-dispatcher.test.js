@@ -21,6 +21,8 @@ function run(args, envOverrides = {}) {
   };
   delete env.CODEX_HOME;
   delete env.PI_CODING_AGENT_DIR;
+  delete env.OPENCODE_CONFIG_DIR;
+  delete env.XDG_CONFIG_HOME;
   Object.assign(env, envOverrides);
   const res = spawnSync('bash', [installSh, ...args], { env, encoding: 'utf8' });
   return { ...res, home };
@@ -121,6 +123,8 @@ function runFake(dir, script, args) {
   const env = { ...process.env, PATH: '/usr/bin:/bin', HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-h-')) };
   delete env.CODEX_HOME;
   delete env.PI_CODING_AGENT_DIR;
+  delete env.OPENCODE_CONFIG_DIR;
+  delete env.XDG_CONFIG_HOME;
   return spawnSync('bash', [path.join(dir, 'scripts', script), ...args], { env, encoding: 'utf8' });
 }
 
@@ -135,10 +139,10 @@ test('unknown --target error lists every discovered target', () => {
   }
 });
 
-test('real unknown --target error lists claude, codex and pi', () => {
+test('real unknown --target error lists claude, codex, pi and opencode', () => {
   const res = run(['-n', '--target', 'bogus', 'common']);
   const out = res.stdout + res.stderr;
-  assert.ok(out.includes('claude') && out.includes('codex') && out.includes('pi'), out);
+  assert.ok(out.includes('claude') && out.includes('codex') && out.includes('pi') && out.includes('opencode'), out);
 });
 
 test('--target pi dry-run plans AGENTS.md, prompts, agents and extensions', () => {
@@ -160,7 +164,7 @@ test('--target pi without pi fails', () => {
 test('default target all skips pi with INFO when pi is absent', () => {
   const res = run(['-n', 'common']);
   assert.strictEqual(res.status, 0, res.stderr);
-  assert.ok(res.stdout.includes('Pi not detected; skipping pi target'), res.stdout);
+  assert.ok(res.stdout.includes('pi not detected; skipping pi target'), res.stdout);
 });
 
 test('target all with -m installs pi when detected (-m ignored)', () => {
@@ -175,6 +179,44 @@ test('uninstall --target pi dry-run plans removals', () => {
   const uninstallSh = path.join(repoRoot, 'scripts', 'uninstall.sh');
   const env = { ...process.env, HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-h-')), PI_CODING_AGENT_DIR: piDir, PATH: '/usr/bin:/bin' };
   const res = spawnSync('bash', [uninstallSh, '-n', '--target', 'pi', 'common'], { env, encoding: 'utf8' });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(res.stdout.includes('AGENTS.md'), res.stdout);
+});
+
+test('--target opencode dry-run plans AGENTS.md, commands, agents and opencode.json', () => {
+  const ocDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-oc-'));
+  const res = run(['-n', '--target', 'opencode', 'common'], { OPENCODE_CONFIG_DIR: ocDir });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  for (const s of ['AGENTS.md', '[commands]', '[agents]', 'opencode.json']) {
+    assert.ok(res.stdout.includes(s), `expected ${s}: ${res.stdout}`);
+  }
+  assert.ok(!res.stdout.includes('CLAUDE.md'));
+});
+
+test('--target opencode without OpenCode fails', () => {
+  const res = run(['-n', '--target', 'opencode', 'common']);
+  assert.notStrictEqual(res.status, 0);
+  assert.ok((res.stdout + res.stderr).includes('OpenCode not detected'));
+});
+
+test('default target all skips opencode with INFO when OpenCode is absent', () => {
+  const res = run(['-n', 'common']);
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.ok(res.stdout.includes('OpenCode not detected; skipping opencode target'), res.stdout);
+});
+
+test('target all with -m installs opencode when detected (-m ignored)', () => {
+  const ocDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-oc-'));
+  const res = run(['-n', '-m', '--target', 'all', 'common'], { OPENCODE_CONFIG_DIR: ocDir });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(res.stdout.includes('opencode.json'), res.stdout);
+});
+
+test('uninstall --target opencode dry-run plans removals', () => {
+  const ocDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-oc-un-'));
+  const uninstallSh = path.join(repoRoot, 'scripts', 'uninstall.sh');
+  const env = { ...process.env, HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-h-')), OPENCODE_CONFIG_DIR: ocDir, PATH: '/usr/bin:/bin' };
+  const res = spawnSync('bash', [uninstallSh, '-n', '--target', 'opencode', 'common'], { env, encoding: 'utf8' });
   assert.strictEqual(res.status, 0, res.stderr + res.stdout);
   assert.ok(res.stdout.includes('AGENTS.md'), res.stdout);
 });

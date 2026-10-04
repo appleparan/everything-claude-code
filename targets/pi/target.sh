@@ -13,3 +13,7 @@ target_is_available() {
 target_description() {
     echo "~/.pi/agent (AGENTS.md, instructions, skills, prompts, agents, extensions)"
 }
+
+target_display_name() {
+    echo "pi"
+}

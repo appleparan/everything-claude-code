@@ -12,3 +12,7 @@ target_is_available() {
 target_description() {
     echo "~/.claude (default components)"
 }
+
+target_display_name() {
+    echo "Claude Code"
+}

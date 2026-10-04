@@ -8,8 +8,8 @@
 
 A curated collection of Claude Code configurations — agents, skills, commands,
 rules, and hooks — installable per language into **Claude Code** (`~/.claude`),
-**Codex CLI** (`~/.codex`), and **pi** (`~/.pi/agent`) from a single shared
-content tree.
+**Codex CLI** (`~/.codex`), **pi** (`~/.pi/agent`), and **OpenCode**
+(`~/.config/opencode`) from a single shared content tree.
 
 This is a fork of
 [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code),
@@ -23,6 +23,9 @@ restructured around a script-based, multi-target install flow:
   (`AGENTS.md`, instructions, skills, MCP servers).
 - **pi support**: the same content installs into `~/.pi/agent` (`AGENTS.md`,
   instructions, skills, prompts, subagents, a safety extension).
+- **OpenCode support**: the same content installs into `~/.config/opencode`
+  (`AGENTS.md`, instructions, skills, commands, subagents, ask-before shell
+  rules).
 
 ---
 
@@ -46,13 +49,14 @@ git clone https://github.com/appleparan/everything-claude-code.git
 cd everything-claude-code
 
 # Install common + python configs for every detected target
-# (Codex and pi are skipped automatically when not detected)
+# (Codex, pi and OpenCode are skipped automatically when not detected)
 ./scripts/install.sh python common
 
 # One target only
 ./scripts/install.sh --target claude python common
 ./scripts/install.sh --target codex python common
 ./scripts/install.sh --target pi python common
+./scripts/install.sh --target opencode python common
 
 # Preview what would be installed, without writing anything
 ./scripts/install.sh -n --target all python common
@@ -63,7 +67,7 @@ cd everything-claude-code
 
 `scripts/install.sh` is a thin `--target <name>|all` dispatcher (default `all`)
 over the targets discovered under `targets/*/target.sh` (today `claude`,
-`codex`, and `pi`), which all read from the single `content/` source tree. `all` runs
+`codex`, `pi`, and `opencode`), which all read from the single `content/` source tree. `all` runs
 `claude` first, then every other target that reports itself available.
 
 Available languages: `common`, `infra`, `node`, `python`, `rust`, `typescript`.
@@ -74,11 +78,11 @@ Options (shared by install and uninstall):
 
 | Flag | Effect |
 |---|---|
-| `--target claude\|codex\|pi\|all` | Which tool to install into (default `all`) |
+| `--target claude\|codex\|pi\|opencode\|all` | Which tool to install into (default `all`) |
 | `-n` | Dry run — show what would be copied without copying |
 | `-f` | Force-overwrite existing files (default is skip) |
 | `-p` | Prune orphaned files left by previous installs (see below) |
-| `-m` | Merge MCP servers from `content/mcp/servers.json` (off by default; install only; pi ignores it) |
+| `-m` | Merge MCP servers from `content/mcp/servers.json` (off by default; install only; pi and OpenCode ignore it) |
 | `-l` | List available languages |
 | `-h` | Show help |
 
@@ -91,7 +95,7 @@ run install again.
 
 Every non-dry-run install writes `.ecc-manifest` next to the installed files
 (`~/.claude/.ecc-manifest`, `~/.codex/.ecc-manifest`,
-`~/.pi/agent/.ecc-manifest`), recording every
+`~/.pi/agent/.ecc-manifest`, `~/.config/opencode/.ecc-manifest`), recording every
 destination that install manages for the languages you selected. Content
 that's shared/merged (`CLAUDE.md`, `settings.json`, `AGENTS.md`,
 `config.toml`) is never tracked, so it's never a prune candidate.
@@ -259,13 +263,71 @@ Three limits to know:
 pi is detected via `$PI_CODING_AGENT_DIR`, an existing `~/.pi` directory, or a
 `pi` binary on `PATH`.
 
+### OpenCode support
+
+`./scripts/install.sh --target opencode` installs into `$OPENCODE_CONFIG_DIR`,
+else `$XDG_CONFIG_HOME/opencode`, else `~/.config/opencode`:
+
+| content | destination |
+|---|---|
+| `content/instructions/global.md` + OpenCode addendum + rules index | `AGENTS.md` (generated) |
+| `content/rules/**` | `instructions/*.md` |
+| `content/skills/**`, `content/external-skills.json` | `skills/<name>/` |
+| `content/commands/**` | `commands/*.md` (copied as-is, run as `/<name>`) |
+| `content/agents/**` | `agents/*.md`, converted (see below) |
+| `content/targets/opencode/opencode.json` | `opencode.json` |
+
+Install and uninstall:
+
+```bash
+./scripts/install.sh --target opencode common python   # -n, -f, -p work as above
+./scripts/uninstall.sh --target opencode common python
+```
+
+Agent conversion: OpenCode silently drops an agent whose `tools:` is a list or
+whose `model:` has no `provider/` prefix, and drops `permissions` when a
+`name:` key sits beside them. The installer therefore removes the `tools:`,
+`model:` and `name:` lines (the agent id is the filename; subagents use the
+model from your OpenCode configuration), adds `mode: subagent`, and turns the
+original tool list into permissions. An agent without Edit, MultiEdit and
+Write gets an `edit` deny, one without Bash gets a `shell` deny. The body is
+unchanged. An agent with a block-list or empty `tools:`, or with its own
+`permissions:`, is skipped with a WARN.
+
+Safety: OpenCode has no per-command sandbox by default. The installed
+`opencode.json` makes it ask before destructive shell commands (`rm -r`,
+`sudo`, forced `git push`, `git reset --hard`, `git clean -f`,
+`git branch -D`, `--no-verify`, `chmod 777`, and similar). OpenCode loads
+`opencode.json` first and your own `opencode.jsonc` after it, and the last
+matching rule wins, so rules in your `.jsonc` override these. The pattern
+`git push --force*` also matches `--force-with-lease`, which therefore asks
+too, and `rm -*r*` also asks for `rm -f readme.txt`.
+Your own `opencode.json` can hold providers, API keys and MCP servers, so
+install writes the file only when it is absent or still a shipped version
+(current or from git history). Otherwise it leaves yours alone, even with
+`-f`, and warns: merge the `permissions` array from
+`content/targets/opencode/opencode.json` into your config by hand. Install
+never parses or merges your config. Uninstall removes `opencode.json` only
+under the same condition and never touches `opencode.jsonc`.
+
+Limits to know:
+
+- The rules are a pattern list, not a security boundary. A `` !`cmd` `` line in
+  a command template runs outside the permission check, so review commands
+  you add or edit.
+- Not ported: hooks and plugins, the doc-file blocker, and MCP config.
+
+OpenCode is detected via `$OPENCODE_CONFIG_DIR`, an existing config directory,
+or an `opencode` binary on `PATH`.
+
 ### Uninstall
 
 ```bash
-./scripts/uninstall.sh                    # all targets (codex and pi skipped if absent)
+./scripts/uninstall.sh                    # all targets (others skipped if absent)
 ./scripts/uninstall.sh --target claude
 ./scripts/uninstall.sh --target codex
 ./scripts/uninstall.sh --target pi common python
+./scripts/uninstall.sh --target opencode common python
 ```
 
 `uninstall.sh --target codex` removes the installed files but never touches
@@ -287,11 +349,11 @@ everything-claude-code/
 |-- content/          # Single source of truth (target-neutral, no install logic)
 |   |-- instructions/
 |   |   |-- global.md        # Harness-neutral instructions (-> CLAUDE.md / AGENTS.md, plus each target's addendum)
-|   |-- agents/               # Specialized subagents (Claude Code, pi)
+|   |-- agents/               # Specialized subagents (Claude Code, pi, OpenCode)
 |   |   |-- common/, infra/, node/, python/, rust/, typescript/
-|   |-- skills/                # Workflow definitions (Claude Code, Codex, pi)
+|   |-- skills/                # Workflow definitions (Claude Code, Codex, pi, OpenCode)
 |   |   |-- common/, node/, python/
-|   |-- commands/              # Slash commands (Claude Code; pi prompt templates)
+|   |-- commands/              # Slash commands (Claude Code; pi prompt templates; OpenCode commands)
 |   |   |-- common/, infra/, node/, python/, rust/
 |   |-- rules/                 # Always-follow guidelines (all targets)
 |   |   |-- common/, infra/, node/, python/, rust/, typescript/
@@ -312,6 +374,9 @@ everything-claude-code/
 |           |-- agents/        # worker and scout subagents
 |           |-- extensions/ecc-safety/  # Destructive-command and doc-file guard
 |           |-- upstream-extensions.json  # Pinned upstream subagent extension
+|       |-- opencode/
+|           |-- instructions.md  # Addendum appended to AGENTS.md
+|           |-- opencode.json  # Ask-before shell rules -> ~/.config/opencode/opencode.json
 |
 |-- targets/           # Per-target adapters - mapping/transform only, no content
 |   |-- claude/
@@ -328,6 +393,10 @@ everything-claude-code/
 |       |-- target.sh
 |       |-- install.sh        # content/* -> ~/.pi/agent/* (see pi support above)
 |       |-- uninstall.sh
+|   |-- opencode/
+|       |-- target.sh
+|       |-- install.sh        # content/* -> ~/.config/opencode/* (see OpenCode support above)
+|       |-- uninstall.sh
 |
 |-- scripts/          # Thin dispatchers + hook runtime scripts
 |   |-- install.sh           # --target <name>|all (default all)
@@ -338,6 +407,7 @@ everything-claude-code/
 |   |-- lib/external-skills.sh   # Installs content/external-skills.json for a target
 |   |-- lib/prune.sh             # Manifest and orphan pruning
 |   |-- lib/pi-agents.sh         # Converts shared agents to pi tool names
+|   |-- lib/opencode-agents.sh   # Converts shared agents to OpenCode's format
 |   |-- lib/upstream-extensions.sh  # Fetches pinned upstream pi extensions
 |   |-- node/                # Node.js hook runtime scripts
 |   |   |-- lib/, hooks/, ci/
@@ -430,7 +500,7 @@ The upstream repo distributes this content as a Claude Code plugin
 (`/plugin marketplace add affaan-m/everything-claude-code`). This fork keeps
 the plugin manifests (`.claude-plugin/`) intact, but the script-based install
 above is the supported path here — it is explicit about what gets copied,
-supports Codex and pi, and installs `rules`, which the plugin system cannot
+supports Codex, pi and OpenCode, and installs `rules`, which the plugin system cannot
 distribute ([upstream limitation](https://code.claude.com/docs/en/plugins-reference)).
 
 > **For contributors:** do NOT add a `"hooks"` field to
@@ -452,7 +522,7 @@ npx markdownlint "content/**/*.md"
 ```
 
 Tests cover the hook runtime libraries, dispatcher `--target` handling, and
-the Codex and pi adapter scripts.
+the Codex, pi and OpenCode adapter scripts.
 
 Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 

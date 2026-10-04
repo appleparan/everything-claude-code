@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Manifest read/write and orphan-pruning helpers, shared by
-# targets/{claude,codex,pi}/install.sh.
+# targets/{claude,codex,pi,opencode}/install.sh.
 #
 # Callers must source scripts/lib/common.sh first (REPO_ROOT, FORCE,
 # DRY_RUN, log_* helpers, remove_file/remove_dir), then set PRUNE_TARGET to
-# "claude", "codex" or "pi" before calling run_prune/manifest_write.
+# "claude", "codex", "pi" or "opencode" before calling run_prune/manifest_write.
 #
 # bash 3.2 compatible: no associative arrays, no mapfile/readarray. Lang
 # membership checks use newline-joined strings + `grep -Fxq` instead.
@@ -405,16 +405,47 @@ prune_map_source() {
         fi
         return 0
     fi
+
+    if [[ "$PRUNE_TARGET" == "opencode" ]]; then
+        # Commands copy as-is to commands/, shared agents install converted
+        # (unverified: the fallback lists them and leaves them untouched,
+        # like pi). Rules go to instructions/, skills to skills/.
+        if [[ "$srcpath" =~ ^content/commands/([^/]+)/([^/]+\.md)$ ]]; then
+            lang="${BASH_REMATCH[1]}"; filename="${BASH_REMATCH[2]}"
+            lang_in_list "$lang" "$langs_nl" || return 0
+            printf '%s\t%s\t0\n' "commands/${filename}" "$srcpath"
+            return 0
+        fi
+        if [[ "$srcpath" =~ ^content/agents/([^/]+)/([^/]+\.md)$ ]]; then
+            lang="${BASH_REMATCH[1]}"; filename="${BASH_REMATCH[2]}"
+            lang_in_list "$lang" "$langs_nl" || return 0
+            printf '%s\t%s\t0\n' "agents/${filename}" "$srcpath"
+            return 0
+        fi
+        if [[ "$srcpath" =~ ^content/rules/([^/]+)/([^/]+\.md)$ ]]; then
+            lang="${BASH_REMATCH[1]}"; filename="${BASH_REMATCH[2]}"
+            lang_in_list "$lang" "$langs_nl" || return 0
+            printf '%s\t%s\t0\n' "instructions/${filename}" "$srcpath"
+            return 0
+        fi
+        if [[ "$srcpath" =~ ^content/skills/([^/]+)/([^/]+)/ ]]; then
+            lang="${BASH_REMATCH[1]}"; skill="${BASH_REMATCH[2]}"
+            lang_in_list "$lang" "$langs_nl" || return 0
+            printf '%s\t%s\t1\n' "skills/${skill}" "content/skills/${lang}/${skill}"
+            return 0
+        fi
+        return 0
+    fi
 }
 
-# True (0) iff local file $1 is byte-identical (per `git hash-object`) to
+# True (0) iff local file $1 is byte-identical (per `git hash-object --no-filters`) to
 # SOME historical version of repo-relative path $2 (`git rev-parse
 # <commit>:<path>` over every commit that ever touched it).
 prune_verify_file() {
     local local_path="$1" srcpath="$2"
     [[ -f "$local_path" ]] || return 1
     local local_hash
-    local_hash=$(git hash-object "$local_path" 2>/dev/null) || return 1
+    local_hash=$(git hash-object --no-filters "$local_path" 2>/dev/null) || return 1
 
     local commit blob_hash
     while IFS= read -r commit; do
