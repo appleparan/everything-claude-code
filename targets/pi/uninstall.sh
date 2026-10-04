@@ -10,6 +10,8 @@ source "${SCRIPT_DIR}/target.sh"
 source "${REPO_ROOT}/scripts/lib/external-skills.sh"
 # shellcheck source=../../scripts/lib/upstream-extensions.sh
 source "${REPO_ROOT}/scripts/lib/upstream-extensions.sh"
+# shellcheck source=../../scripts/lib/prune.sh
+source "${REPO_ROOT}/scripts/lib/prune.sh"
 # shellcheck source=../../scripts/lib/pi-agents.sh
 source "${REPO_ROOT}/scripts/lib/pi-agents.sh"
 
@@ -27,10 +29,11 @@ Uninstall shared configuration from pi (\$PI_CODING_AGENT_DIR or ~/.pi/agent):
   extensions/        ecc-safety and the upstream extensions pinned in
                      content/targets/pi/upstream-extensions.json
 
-Only files that are still identical to what install writes are removed:
-your own files, and installed files you edited, are kept (logged as SKIP).
-AGENTS.md is removed only when it is the generated one; upstream extensions
-only when they carry the .ecc-upstream marker.
+Only what install wrote is removed. Entries listed in .ecc-manifest are ours
+even if edited; everything else (AGENTS.md, worker/scout, ecc-safety, files
+install skipped) must still be identical to the shipped version. Upstream
+extensions need the .ecc-upstream marker, external skills .ecc-external.
+Symlinks and your own files are kept (logged as SKIP).
 
 Options:
   -n    Dry run (show what would be removed without removing)
@@ -39,11 +42,17 @@ Options:
 EOF
 }
 
-# Remove file $2 only if it is byte-identical to $1; otherwise keep it.
-# $3 is the label. A missing dest reports MISS like remove_file.
+# True (0) iff relpath $1 is a real (non-symlink) dest listed in the manifest.
+owned_in_manifest() {
+    [[ ! -L "${PI_DIR}/${1%/}" ]] && manifest_lists "$PI_DIR" "${1%/}"
+}
+
+# Remove file $2 if the manifest owns it or it is byte-identical to $1;
+# otherwise keep it. $3 is the label (also the relpath). A missing dest
+# reports MISS like remove_file.
 remove_file_if_same() {
     local src="$1" target="$2" label="$3"
-    if [[ ! -e "$target" && ! -L "$target" ]] || dest_same_file "$src" "$target"; then
+    if [[ ! -e "$target" && ! -L "$target" ]] || owned_in_manifest "$label" || dest_same_file "$src" "$target"; then
         remove_file "$target" "$label"
     else
         log_keep "$label"
@@ -53,7 +62,7 @@ remove_file_if_same() {
 # Remove directory $2 only if it has exactly the files of $1.
 remove_dir_if_same() {
     local src="$1" target="$2" label="$3"
-    if [[ ! -e "$target" && ! -L "$target" ]] || dest_same_dir "$src" "$target"; then
+    if [[ ! -e "$target" && ! -L "$target" ]] || owned_in_manifest "$label" || dest_same_dir "$src" "$target"; then
         remove_dir "$target" "$label"
     else
         log_keep "$label"
@@ -129,8 +138,8 @@ echo ""
 
 echo -e "${CYAN}[global]${NC}"
 # AGENTS.md is generated; a user-authored one lacks the harness heading.
-if [[ -f "${PI_DIR}/AGENTS.md" && ! -L "${PI_DIR}/AGENTS.md" ]] \
-    && ! grep -Fxq -- '## Harness: pi' "${PI_DIR}/AGENTS.md"; then
+if [[ -L "${PI_DIR}/AGENTS.md" ]] \
+    || { [[ -f "${PI_DIR}/AGENTS.md" ]] && ! grep -Fxq -- '## Harness: pi' "${PI_DIR}/AGENTS.md"; }; then
     log_keep "AGENTS.md"
 else
     remove_file "${PI_DIR}/AGENTS.md" "AGENTS.md"
@@ -161,7 +170,14 @@ if [[ -f "$ext_src" ]]; then
                     log_warn "skills: invalid name '${ext_name}'; skipped"
                     continue ;;
             esac
-            remove_dir "${PI_DIR}/skills/${ext_name}" "skills/${ext_name}/"
+            # Ours only when install left its marker (a same-named user skill has none).
+            ext_dest="${PI_DIR}/skills/${ext_name}"
+            if [[ ! -e "$ext_dest" && ! -L "$ext_dest" ]] \
+                || { [[ ! -L "$ext_dest" && -f "${ext_dest}/${EXTERNAL_MARKER}" ]]; }; then
+                remove_dir "$ext_dest" "skills/${ext_name}/"
+            else
+                log_keep "skills/${ext_name}/"
+            fi
         done < <(external_skill_names pi)
     else
         log_info "jq not found; remove external skills from external-skills.json manually"
@@ -192,7 +208,8 @@ for lang in "${LANGUAGES[@]}"; do
         name=$(basename "$f")
         # Compare with what install would write now (tools: line converted).
         dest="${PI_DIR}/agents/${name}"
-        if [[ ! -e "$dest" && ! -L "$dest" ]] || pi_agent_matches "$f" "$dest"; then
+        if [[ ! -e "$dest" && ! -L "$dest" ]] || owned_in_manifest "agents/${name}" \
+            || pi_agent_matches "$f" "$dest"; then
             remove_file "$dest" "agents/${name}"
         else
             log_keep "agents/${name}"
@@ -247,6 +264,8 @@ if [[ -f "$UPSTREAM_EXTENSIONS_JSON" ]]; then
 fi
 cleanup_empty_dir "${PI_DIR}/extensions" "extensions/"
 echo ""
+
+$DRY_RUN || manifest_prune_missing "$PI_DIR"
 
 echo ""
 echo "────────────────────────────────"

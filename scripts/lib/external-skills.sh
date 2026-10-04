@@ -12,6 +12,9 @@
 JQ_EXTERNAL_SKILLS='(.skills // [])[] | select((.targets | type) != "array" or any(.targets[]; . == $t)) | [.name, .repo, .path // ""] | @tsv'
 JQ_EXTERNAL_SKILL_NAMES='(.skills // [])[] | select((.targets | type) != "array" or any(.targets[]; . == $t)) | .name'
 
+# Written into each installed external skill dir (holds the source repo).
+EXTERNAL_MARKER=".ecc-external"
+
 # Names of the external skills that apply to <target>, one per line.
 # Usage: external_skill_names <target>   (requires jq)
 external_skill_names() {
@@ -66,6 +69,12 @@ install_external_skills() {
 
         dest="${dest_dir}/${name}"
 
+        # Never write through a symlinked dest (e.g. into a user's dotfiles).
+        if [[ -L "$dest" ]]; then
+            log_symlink "${dest_label}/${name}/"
+            skipped=$((skipped + 1))
+            continue
+        fi
         if $DRY_RUN; then
             log_dry "${repo} (${skill_path})" "${dest_label}/${name}/"
             copied=$((copied + 1))
@@ -97,6 +106,9 @@ install_external_skills() {
             rm -rf "${ext_tmp:?}"; ext_tmp=""
             continue
         fi
+        # Ownership marker: uninstall removes only dirs that carry it.
+        rm -f "${dest}/${EXTERNAL_MARKER}"
+        printf '%s\n' "$repo" > "${dest}/${EXTERNAL_MARKER}" || log_warn "${dest_label}/${name}: could not write ${EXTERNAL_MARKER}"
         log_copy "${repo} (${skill_path})" "${dest_label}/${name}/"
         copied=$((copied + 1))
         rm -rf "${ext_tmp:?}"; ext_tmp=""

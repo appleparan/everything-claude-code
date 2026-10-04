@@ -437,26 +437,148 @@ test('a user edit of a skipped installed file is not pruned after a reinstall', 
   assert.strictEqual(fs.readFileSync(path.join(piDir, 'prompts', 'plan.md'), 'utf8'), 'USER EDIT\n');
 });
 
-test('uninstall keeps installed files that were edited, removes untouched ones', () => {
+test('uninstall keeps edited files that were never manifested; manifest-owned ones are removed', () => {
   const repo = buildRepo();
   const piDir = mkDir('ecc-pi-dest-');
   assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
-  const edited = [
-    'prompts/plan.md', 'agents/planner.md', 'agents/worker.md', 'instructions/coding-style.md',
-    'extensions/ecc-safety/index.ts'
-  ];
-  for (const t of edited) fs.writeFileSync(path.join(piDir, t), 'USER EDIT\n');
-  fs.writeFileSync(path.join(piDir, 'skills', 'example-skill', 'SKILL.md'), 'USER EDIT\n');
+  // Not in the manifest: identity check applies.
+  const kept = ['agents/worker.md', 'extensions/ecc-safety/index.ts'];
+  for (const t of kept) fs.writeFileSync(path.join(piDir, t), 'USER EDIT\n');
   fs.writeFileSync(path.join(piDir, 'AGENTS.md'), '# replaced by the user\n');
+  // Manifest-owned: ours even when edited.
+  const owned = ['prompts/plan.md', 'agents/planner.md', 'instructions/coding-style.md'];
+  for (const t of owned) fs.writeFileSync(path.join(piDir, t), 'USER EDIT\n');
+  fs.writeFileSync(path.join(piDir, 'skills', 'example-skill', 'SKILL.md'), 'USER EDIT\n');
 
   const res = runScript(repo, 'uninstall.sh', ['common'], piDir);
   assert.strictEqual(res.status, 0, res.stderr + res.stdout);
-  for (const t of [...edited, 'skills/example-skill/SKILL.md', 'AGENTS.md']) {
-    assert.ok(fs.existsSync(path.join(piDir, t)), `${t} was edited and must be kept`);
+  for (const t of [...kept, 'AGENTS.md']) assert.ok(fs.existsSync(path.join(piDir, t)), `${t} must be kept`);
+  for (const t of [...owned, 'skills/example-skill', 'agents/scout.md', 'prompts/extra.md', 'agents/notools.md']) {
+    assert.ok(!fs.existsSync(path.join(piDir, t)), `${t} should be removed`);
   }
-  assert.ok(!fs.existsSync(path.join(piDir, 'agents', 'scout.md')), 'untouched scout.md is removed');
-  assert.ok(!fs.existsSync(path.join(piDir, 'prompts', 'extra.md')), 'untouched prompt is removed');
-  assert.ok(!fs.existsSync(path.join(piDir, 'agents', 'notools.md')), 'untouched converted agent is removed');
+});
+
+test('uninstall keeps files the manifest never owned and that differ from the shipped version', () => {
+  const repo = buildRepo();
+  const piDir = mkDir('ecc-pi-dest-');
+  fs.mkdirSync(path.join(piDir, 'prompts'), { recursive: true });
+  fs.writeFileSync(path.join(piDir, 'prompts', 'plan.md'), 'USER PROMPT\n');
+  assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
+  assert.strictEqual(runScript(repo, 'uninstall.sh', ['common'], piDir).status, 0);
+  assert.strictEqual(fs.readFileSync(path.join(piDir, 'prompts', 'plan.md'), 'utf8'), 'USER PROMPT\n');
+});
+
+test('uninstall does not remove a symlinked AGENTS.md', () => {
+  const repo = buildRepo();
+  const piDir = mkDir('ecc-pi-dest-');
+  assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
+  const real = path.join(mkDir('ecc-pi-dots-'), 'AGENTS.md');
+  fs.copyFileSync(path.join(piDir, 'AGENTS.md'), real);
+  fs.rmSync(path.join(piDir, 'AGENTS.md'));
+  fs.symlinkSync(real, path.join(piDir, 'AGENTS.md'));
+  const res = runScript(repo, 'uninstall.sh', ['common'], piDir);
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(fs.lstatSync(path.join(piDir, 'AGENTS.md')).isSymbolicLink());
+  assert.ok(fs.existsSync(real));
+});
+
+// Upgrade flow: a previously owned file that a no-force install skips stays owned.
+test('a changed source skipped without -f is still pruned by -p after the source is deleted', () => {
+  const repo = buildRepo();
+  const piDir = mkDir('ecc-pi-dest-');
+  assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
+  fs.writeFileSync(path.join(repo, 'content/commands/common/extra.md'), '---\ndescription: v2\n---\nv2\n');
+  assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
+  assert.ok(/prompts\/extra\.md/.test(readManifest(piDir)), 'previously owned entry must be carried forward');
+  fs.rmSync(path.join(repo, 'content/commands/common/extra.md'));
+  const res = runScript(repo, 'install.sh', ['-p', 'common'], piDir);
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(!fs.existsSync(path.join(piDir, 'prompts', 'extra.md')), 'orphan should be pruned');
+});
+
+test('a skill dir with stale extra files after a -f overlay stays owned and prunable', () => {
+  const repo = buildRepo();
+  const piDir = mkDir('ecc-pi-dest-');
+  const skill = path.join(repo, 'content/skills/common/example-skill');
+  fs.writeFileSync(path.join(skill, 'extra.md'), 'x\n');
+  assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
+  fs.rmSync(path.join(skill, 'extra.md'));
+  assert.strictEqual(runScript(repo, 'install.sh', ['-f', 'common'], piDir).status, 0);
+  assert.ok(fs.existsSync(path.join(piDir, 'skills', 'example-skill', 'extra.md')), 'overlay keeps the stale file');
+  assert.ok(/skills\/example-skill/.test(readManifest(piDir)));
+  fs.rmSync(skill, { recursive: true });
+  const res = runScript(repo, 'install.sh', ['-p', 'common'], piDir);
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(!fs.existsSync(path.join(piDir, 'skills', 'example-skill')));
+});
+
+// External skills: ownership marker, symlink guard.
+function makeExternalSkillRepo() {
+  const work = mkDir('ecc-pi-extskill-work-');
+  fs.mkdirSync(path.join(work, 'skills', 'x'), { recursive: true });
+  fs.writeFileSync(path.join(work, 'skills', 'x', 'SKILL.md'), '---\nname: ext-skill\n---\nExt\n');
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
+  const id = ['-c', 'user.email=t@t', '-c', 'user.name=t'];
+  sh('git', ['init', '-q'], { cwd: work, env });
+  sh('git', [...id, 'add', '-A'], { cwd: work, env });
+  sh('git', [...id, 'commit', '-q', '-m', 'init'], { cwd: work, env });
+  return work;
+}
+function writeExternalJson(repoDir, repoPath) {
+  fs.writeFileSync(path.join(repoDir, 'content', 'external-skills.json'),
+    JSON.stringify({ skills: [{ name: 'ext-skill', repo: repoPath, path: 'skills/x' }] }) + '\n');
+}
+
+fetchTest('external skill gets an .ecc-external marker and uninstall removes it', () => {
+  const repo = buildRepo();
+  writeExternalJson(repo, makeExternalSkillRepo());
+  const piDir = mkDir('ecc-pi-dest-');
+  assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
+  assert.ok(fs.existsSync(path.join(piDir, 'skills', 'ext-skill', '.ecc-external')));
+  const un = runScript(repo, 'uninstall.sh', ['common'], piDir);
+  assert.strictEqual(un.status, 0, un.stderr + un.stdout);
+  assert.ok(!fs.existsSync(path.join(piDir, 'skills', 'ext-skill')));
+});
+
+fetchTest('uninstall keeps a user skill that shares an external skill name', () => {
+  const repo = buildRepo();
+  writeExternalJson(repo, makeExternalSkillRepo());
+  const piDir = mkDir('ecc-pi-dest-');
+  fs.mkdirSync(path.join(piDir, 'skills', 'ext-skill'), { recursive: true });
+  fs.writeFileSync(path.join(piDir, 'skills', 'ext-skill', 'SKILL.md'), 'MINE\n');
+  assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
+  const un = runScript(repo, 'uninstall.sh', ['common'], piDir);
+  assert.strictEqual(un.status, 0, un.stderr + un.stdout);
+  assert.strictEqual(fs.readFileSync(path.join(piDir, 'skills', 'ext-skill', 'SKILL.md'), 'utf8'), 'MINE\n');
+});
+
+fetchTest('install -f does not write into a symlinked external skill dir', () => {
+  const repo = buildRepo();
+  writeExternalJson(repo, makeExternalSkillRepo());
+  const piDir = mkDir('ecc-pi-dest-');
+  const dots = mkDir('ecc-pi-dots-');
+  fs.writeFileSync(path.join(dots, 'SKILL.md'), 'DOTFILE\n');
+  fs.mkdirSync(path.join(piDir, 'skills'), { recursive: true });
+  fs.symlinkSync(dots, path.join(piDir, 'skills', 'ext-skill'));
+  const res = runScript(repo, 'install.sh', ['-f', 'common'], piDir);
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(/WARN.*symlink, not overwritten/.test(res.stdout), res.stdout);
+  assert.deepStrictEqual(fs.readdirSync(dots), ['SKILL.md']);
+  assert.strictEqual(fs.readFileSync(path.join(dots, 'SKILL.md'), 'utf8'), 'DOTFILE\n');
+});
+
+fetchTest('the .ecc-upstream marker write does not follow a symlink', () => {
+  const up = makeUpstreamRepo({ 'index.ts': 'INDEX\n', 'agents.ts': 'AGENTS\n' });
+  const repo = buildRepo();
+  writeUpstreamJson(repo, { name: 'subagent', repo: up.bare, ref: up.sha, path: up.base, files: ['index.ts', 'agents.ts'] });
+  const piDir = mkDir('ecc-pi-dest-');
+  const victim = path.join(mkDir('ecc-pi-victim-'), 'victim.txt');
+  fs.writeFileSync(victim, 'VICTIM\n');
+  fs.mkdirSync(path.join(piDir, 'extensions', 'subagent'), { recursive: true });
+  fs.symlinkSync(victim, path.join(piDir, 'extensions', 'subagent', '.ecc-upstream'));
+  const res = runScript(repo, 'install.sh', ['-f', 'common'], piDir, { ECC_SKIP_UPSTREAM: '' });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.strictEqual(fs.readFileSync(victim, 'utf8'), 'VICTIM\n');
 });
 
 fetchTest('upstream install writes the .ecc-upstream marker with the ref', () => {

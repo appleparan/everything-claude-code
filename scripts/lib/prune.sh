@@ -53,15 +53,60 @@ manifest_add_unowned() {
     MANIFEST_UNOWNED+=("${1}"$'\t'"${2}")
 }
 
-# Records a dest as managed only when it ended up byte-identical to what the
-# installer ships (after the copy step); dry runs record it unconditionally
-# so `-n -p` previews stay accurate.
+# True (0) iff manifest at $1=base_dir already lists relpath $2 (any lang).
+manifest_lists() {
+    local path
+    path=$(manifest_file_path "$1")
+    [[ -f "$path" ]] || return 1
+    awk -F'\t' -v r="$2" '$1 !~ /^#/ && $2 == r { found = 1 } END { exit !found }' "$path"
+}
+
+# Records a dest as managed when it ended up byte-identical to what the
+# installer ships (after the copy step), or when the previous manifest
+# already owned it and it is still a real (non-symlink) path: a no-force
+# upgrade that skips a changed file, or a stale extra file left by an -f
+# overlay, must not drop it from the manifest. Dry runs record it
+# unconditionally so `-n -p` previews stay accurate.
+# $1=lang $2=relpath $3=0 if identical, else non-zero $4=installed dest.
+manifest_add_checked() {
+    if $DRY_RUN || [[ "$3" -eq 0 ]]; then
+        manifest_add "$1" "$2"
+    elif [[ -e "$4" && ! -L "$4" ]] && manifest_lists "${4%/"$2"}" "$2"; then
+        manifest_add "$1" "$2"
+    else
+        manifest_add_unowned "$1" "$2"
+    fi
+}
 # $1=lang $2=relpath $3=source file/dir $4=installed dest.
 manifest_add_file() {
-    if $DRY_RUN || dest_same_file "$3" "$4"; then manifest_add "$1" "$2"; else manifest_add_unowned "$1" "$2"; fi
+    local same=0
+    dest_same_file "$3" "$4" || same=1
+    manifest_add_checked "$1" "$2" "$same" "$4"
 }
 manifest_add_dir() {
-    if $DRY_RUN || dest_same_dir "$3" "$4"; then manifest_add "$1" "$2"; else manifest_add_unowned "$1" "$2"; fi
+    local same=0
+    dest_same_dir "$3" "$4" || same=1
+    manifest_add_checked "$1" "$2" "$same" "$4"
+}
+
+# Drops manifest entries whose dest no longer exists under $1=base_dir, and
+# the manifest itself when nothing is left. Used by uninstall so a stale
+# entry cannot later claim a file the user creates at the same path.
+manifest_prune_missing() {
+    local base_dir="$1" path lang relpath kept=""
+    path=$(manifest_file_path "$base_dir")
+    [[ -f "$path" ]] || return 0
+    while IFS=$'\t' read -r lang relpath; do
+        [[ -z "$lang" ]] && continue
+        if [[ -e "${base_dir}/${relpath}" || -L "${base_dir}/${relpath}" ]]; then
+            kept="${kept}${lang}"$'\t'"${relpath}"$'\n'
+        fi
+    done < <(grep -v '^#' "$path" || true)
+    if [[ -z "$kept" ]]; then
+        rm -f "$path"
+    else
+        { echo "$MANIFEST_HEADER"; printf '%s' "$kept"; } > "$path"
+    fi
 }
 
 manifest_file_path() {

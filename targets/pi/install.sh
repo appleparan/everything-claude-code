@@ -183,11 +183,9 @@ for lang in "${LANGUAGES[@]}"; do
         fi
         # Recorded as managed only if the dest is exactly what we install;
         # a skipped user file must never be pruned later.
-        if $DRY_RUN || pi_agent_matches "$f" "$dest"; then
-            manifest_add "$lang" "agents/${name}"
-        else
-            manifest_add_unowned "$lang" "agents/${name}"
-        fi
+        same=0
+        pi_agent_matches "$f" "$dest" || same=1
+        manifest_add_checked "$lang" "agents/${name}" "$same" "$dest"
     done
 done
 pi_agents_src="${CONTENT_ROOT}/targets/pi/agents"

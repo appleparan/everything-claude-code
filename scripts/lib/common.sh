@@ -46,8 +46,8 @@ log_info() { echo -e "  ${CYAN}INFO${NC}  $1"; }
 log_warn() { echo -e "  ${RED}WARN${NC}  $1"; }
 log_rm()       { echo -e "  ${RED}RM${NC}    $1"; }
 log_not_found() { echo -e "  ${YELLOW}MISS${NC}  $1 (not installed)"; }
-log_symlink() { echo -e "  ${RED}WARN${NC}  $1 (symlink, not overwritten)"; }
-log_keep() { echo -e "  ${YELLOW}SKIP${NC}  $1 (differs from the shipped version; kept)"; }
+log_symlink() { echo -e "  ${RED}WARN${NC}  $1 (symlink, not overwritten; update the link target by hand or remove the link and re-run)"; }
+log_keep() { echo -e "  ${YELLOW}SKIP${NC}  $1 (not written by this installer or differs from the shipped version; kept)"; }
 
 jq_install_hint() {
     log_warn "Install jq: sudo apt install jq (Debian/Ubuntu), brew install jq (macOS), sudo dnf install jq (Fedora), sudo pacman -S jq (Arch)"

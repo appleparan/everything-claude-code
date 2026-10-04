@@ -177,6 +177,7 @@ install_upstream_extensions() {
         while IFS= read -r f; do
             cp "${ext_tmp}/${ext_path}/${f}" "${dest}/${f}" || copy_ok=false
         done <<< "$files_nl"
+        rm -f "${dest}/${UPSTREAM_MARKER}"  # never write through a symlinked marker
         printf '%s\n' "$ref" > "${dest}/${UPSTREAM_MARKER}" || copy_ok=false
         if ! $copy_ok; then
             log_warn "${dest_label}/${name}: copy failed; skipped"
