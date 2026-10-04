@@ -48,8 +48,8 @@ install_external_skills() {
         # The JSON is repo-tracked, but a typo'd name/path must never write or
         # delete outside <dest-dir>/<name>/ (target uninstall scripts have the
         # twin name guard).
+        # shellcheck disable=SC1003
         case "$name" in
-            # shellcheck disable=SC1003
             .|..|*/*|*'\'*)
                 log_warn "${dest_label}: invalid name '${name}'; skipped"
                 continue ;;
