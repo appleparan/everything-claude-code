@@ -16,6 +16,7 @@ const testFiles = [
   'hooks/hooks.test.js',
   'integration/hooks.test.js',
   'ci/validators.test.js',
+  'ci/frontmatter-yaml.test.js',
   'ci/no-personal-paths.test.js',
   'ci/validate-workflow-security.test.js',
   'ci/scan-supply-chain-iocs.test.js',

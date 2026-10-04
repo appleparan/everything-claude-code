@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read-only exploration subagent: locate code, trace call paths, summarize files and conventions. Returns findings, never edits.
+description: Read-only exploration subagent that locates code, traces call paths, and summarizes files and conventions. Returns findings, never edits.
 tools: read, grep, find, ls, bash
 model: haiku
 ---
