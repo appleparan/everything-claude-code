@@ -36,6 +36,9 @@ extensions need the .ecc-upstream marker, external skills .ecc-external.
 Symlinks and your own files are kept (logged as SKIP).
 
 Options:
+  -P <profile>
+        The profile the install used, so identity checks render agents the
+        same way (files owned by the manifest are removed either way)
   -n    Dry run (show what would be removed without removing)
   -l    List available languages and exit
   -h    Show this help
@@ -81,9 +84,11 @@ remove_dir_if_ours() {
 }
 
 DRY_RUN=false
-while getopts "nlh" opt; do
+PROFILE=""
+while getopts "nlhP:" opt; do
     case $opt in
         n) DRY_RUN=true ;;
+        P) PROFILE="$OPTARG" ;;
         l) discover_languages; exit 0 ;;
         h) usage; exit 0 ;;
         *) usage; exit 1 ;;
@@ -105,6 +110,10 @@ for lang in "${LANGUAGES[@]}"; do
         exit 1
     fi
 done
+
+if [[ -n "$PROFILE" ]]; then
+    pi_load_profile "$PROFILE" || exit 1
+fi
 
 if ! target_is_available; then
     echo -e "${RED}Error: pi not detected (set PI_CODING_AGENT_DIR, create ~/.pi, or install pi)${NC}"
@@ -221,7 +230,13 @@ if [[ -d "$pi_agents_src" ]]; then
     for f in "$pi_agents_src"/*.md; do
         [[ -f "$f" ]] || continue
         name=$(basename "$f")
-        remove_file_if_same "$f" "${PI_DIR}/agents/${name}" "agents/${name}"
+        dest="${PI_DIR}/agents/${name}"
+        if [[ ! -e "$dest" && ! -L "$dest" ]] || owned_in_manifest "agents/${name}" \
+            || pi_agent_matches "$f" "$dest"; then
+            remove_file "$dest" "agents/${name}"
+        else
+            log_keep "agents/${name}"
+        fi
     done
 fi
 cleanup_empty_dir "${PI_DIR}/agents" "agents/"

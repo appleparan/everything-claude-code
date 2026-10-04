@@ -34,6 +34,7 @@ Options:
         with no manifest yet, falls back to a git-history check
   -m    Merge MCP servers from content/mcp/servers.json into config.toml
         (off by default)
+  -P    <profile>: pi-only model profile; accepted and ignored here
   -l    List available languages and exit
   -h    Show this help
 EOF
@@ -43,12 +44,13 @@ FORCE=false
 DRY_RUN=false
 PRUNE=false
 MERGE_MCP=false
-while getopts "fnplhm" opt; do
+while getopts "fnplhmP:" opt; do
     case $opt in
         f) FORCE=true ;;
         n) DRY_RUN=true ;;
         p) PRUNE=true ;;
         m) MERGE_MCP=true ;;
+        P) ;; # pi-only model profile: accepted and ignored so --target all can pass it
         l) discover_languages; exit 0 ;;
         h) usage; exit 0 ;;
         *) usage; exit 1 ;;

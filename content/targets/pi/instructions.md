@@ -4,11 +4,10 @@ pi ships only a few built-in tools; the rest of this setup comes from
 the extensions, agents, prompts, and skills installed in the pi agent directory (`~/.pi/agent/` unless
 `PI_CODING_AGENT_DIR` is set).
 
-- **Delegation**: call the `subagent` tool. Use the `worker` agent
-  (sonnet) for implementation and the `scout` agent (haiku) for
-  read-only exploration. Each file in its `agents/` directory sets its
-  own model; an agent without one inherits yours, so never route
-  routine work to such an agent.
+- **Delegation**: call the `subagent` tool. Subagents inherit your
+  model unless the install pinned models with a profile (`-P`). Use the
+  `worker` agent for implementation (the implementation tier) and the
+  `scout` agent for read-only exploration (the exploration tier).
 - **Skills and commands**: run a skill with `/skill:<name>`. The
   commands of this setup are prompt templates, run as `/<name>`.
 - **Safety**: pi asks no permission before a tool call and has no

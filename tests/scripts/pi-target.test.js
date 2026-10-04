@@ -54,7 +54,10 @@ function writeFixtureContent(dir, { commands = ['plan', 'extra'] } = {}) {
   w('content/targets/pi/agents/worker.md', WORKER_MD);
   w('content/targets/pi/agents/scout.md', SCOUT_MD);
   w('content/targets/pi/extensions/ecc-safety/index.ts', SAFETY_TS);
+  w('content/targets/pi/models.json', fs.readFileSync(path.join(repoRoot, 'content/targets/pi/models.json'), 'utf8'));
 }
+
+const noModel = (md) => md.replace(/^model: .*\n/m, '');
 
 function buildRepo(opts) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-pi-fixture-'));
@@ -171,8 +174,8 @@ test('install creates AGENTS.md, rules, skills, prompts, agents, and extensions'
     fs.readFileSync(path.join(piDir, 'extensions', 'ecc-safety', 'index.ts'), 'utf8'),
     SAFETY_TS
   );
-  assert.strictEqual(fs.readFileSync(path.join(piDir, 'agents', 'worker.md'), 'utf8'), WORKER_MD);
-  assert.strictEqual(fs.readFileSync(path.join(piDir, 'agents', 'scout.md'), 'utf8'), SCOUT_MD);
+  assert.strictEqual(fs.readFileSync(path.join(piDir, 'agents', 'worker.md'), 'utf8'), noModel(WORKER_MD));
+  assert.strictEqual(fs.readFileSync(path.join(piDir, 'agents', 'scout.md'), 'utf8'), noModel(SCOUT_MD));
   assert.ok(!fs.existsSync(path.join(piDir, 'extensions', 'subagent')), 'upstream skipped by env');
 });
 
@@ -206,7 +209,7 @@ test('install fails when pi is not detected', () => {
 // ---------------------------------------------------------------------------
 // Agent conversion
 // ---------------------------------------------------------------------------
-test('agent conversion maps tools, drops unknown with WARN, keeps model and body', () => {
+test('agent conversion maps tools, drops unknown with WARN, strips model, keeps body', () => {
   const repo = buildRepo();
   const piDir = mkDir('ecc-pi-dest-');
   const res = runScript(repo, 'install.sh', ['common'], piDir);
@@ -216,7 +219,7 @@ test('agent conversion maps tools, drops unknown with WARN, keeps model and body
   const out = fs.readFileSync(path.join(piDir, 'agents', 'planner.md'), 'utf8');
   assert.strictEqual(
     out,
-    PLANNER_MD.replace(
+    noModel(PLANNER_MD).replace(
       'tools: ["Read", "Grep", "Glob", "Bash", "Edit", "Write", "WebSearch"]',
       'tools: read, grep, find, bash, edit, write'
     )
@@ -224,7 +227,7 @@ test('agent conversion maps tools, drops unknown with WARN, keeps model and body
   // The body line that looks like a tools line is untouched.
   assert.ok(out.includes('tools: ["Read"] stays in the body.'));
   // An agent without a tools line stays byte-identical.
-  assert.strictEqual(fs.readFileSync(path.join(piDir, 'agents', 'notools.md'), 'utf8'), NOTOOLS_MD);
+  assert.strictEqual(fs.readFileSync(path.join(piDir, 'agents', 'notools.md'), 'utf8'), noModel(NOTOOLS_MD));
 });
 
 test('pi_convert_agent works when called directly', () => {
@@ -717,6 +720,117 @@ test('-p prunes a prompt that was removed from content', () => {
   assert.ok(fs.existsSync(path.join(piDir, 'prompts', 'plan.md')));
   assert.ok(fs.existsSync(path.join(piDir, 'agents', 'worker.md')), 'worker is not manifest-managed');
 });
+
+// ---------------------------------------------------------------------------
+// Model profiles (-P)
+// ---------------------------------------------------------------------------
+const SOLAR = 'openrouter/upstage/solar-pro4';
+const readAgent = (piDir, n) => fs.readFileSync(path.join(piDir, 'agents', n), 'utf8');
+const AGENT_FILES = ['planner.md', 'notools.md', 'worker.md', 'scout.md'];
+
+test('default strips model from every agent, prints one INFO, keeps body and tools', () => {
+  const repo = buildRepo();
+  const piDir = mkDir('ecc-pi-dest-');
+  const res = runScript(repo, 'install.sh', ['common'], piDir);
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  for (const n of AGENT_FILES) assert.ok(!/^model:/m.test(readAgent(piDir, n)), n);
+  assert.strictEqual((res.stdout.match(/model: lines removed/g) || []).length, 1, res.stdout);
+  assert.strictEqual(readAgent(piDir, 'worker.md'), '---\nname: worker\ndescription: w\ntools: read, bash\n---\n\nWork.\n');
+  assert.ok(readAgent(piDir, 'planner.md').includes('tools: read, grep, find, bash, edit, write\n'));
+  assert.ok(readAgent(piDir, 'planner.md').endsWith('Plan things.\n'));
+});
+
+if (hasJq) {
+  test('-P openrouter-solar maps every tier to the profile ID', () => {
+    const repo = buildRepo();
+    const piDir = mkDir('ecc-pi-dest-');
+    const res = runScript(repo, 'install.sh', ['-P', 'openrouter-solar', 'common'], piDir);
+    assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+    assert.ok(readAgent(piDir, 'planner.md').includes(`\nmodel: ${SOLAR}\n---`));
+    assert.ok(readAgent(piDir, 'notools.md').includes(`\nmodel: ${SOLAR}\n`));
+    assert.strictEqual(readAgent(piDir, 'worker.md'), WORKER_MD.replace('model: sonnet', `model: ${SOLAR}`));
+    assert.strictEqual(readAgent(piDir, 'scout.md'), SCOUT_MD.replace('model: haiku', `model: ${SOLAR}`));
+    assert.ok(!/WARN.*model/.test(res.stdout), res.stdout);
+  });
+
+  test('a custom profile maps tiers exactly; a missing tier or non-tier value is stripped with WARN', () => {
+    const repo = buildRepo();
+    fs.writeFileSync(
+      path.join(repo, 'content/targets/pi/models.json'),
+      JSON.stringify({ profiles: { p: { opus: 'a/big', sonnet: 'a/mid' } } })
+    );
+    fs.writeFileSync(
+      path.join(repo, 'content/agents/common/odd.md'),
+      '---\nname: odd\ntools: ["Read"]\nmodel: gpt-9\n---\nBody\n'
+    );
+    const piDir = mkDir('ecc-pi-dest-');
+    const res = runScript(repo, 'install.sh', ['-P', 'p', 'common'], piDir);
+    assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+    assert.ok(readAgent(piDir, 'planner.md').includes('\nmodel: a/big\n'));
+    assert.ok(readAgent(piDir, 'worker.md').includes('\nmodel: a/mid\n'));
+    assert.ok(!/^model:/m.test(readAgent(piDir, 'scout.md')), 'haiku missing from profile');
+    assert.ok(/WARN.*scout.*haiku/.test(res.stdout), res.stdout);
+    assert.ok(!/^model:/m.test(readAgent(piDir, 'odd.md')));
+    assert.ok(/WARN.*odd.*gpt-9/.test(res.stdout), res.stdout);
+  });
+
+  test('unknown profile exits 1, lists profiles, and writes nothing', () => {
+    const repo = buildRepo();
+    const piDir = path.join(mkDir('ecc-pi-dest-'), 'agent');
+    const res = runScript(repo, 'install.sh', ['-P', 'nope', 'common'], piDir);
+    assert.strictEqual(res.status, 1);
+    assert.ok(/Unknown profile 'nope'.*openrouter-solar/.test(res.stdout + res.stderr), res.stdout + res.stderr);
+    assert.ok(!fs.existsSync(piDir), 'nothing may be written');
+    const un = runScript(repo, 'uninstall.sh', ['-P', 'nope', 'common'], piDir);
+    assert.strictEqual(un.status, 1);
+  });
+
+  test('install -P then uninstall -P removes everything', () => {
+    const repo = buildRepo();
+    const piDir = mkDir('ecc-pi-dest-');
+    assert.strictEqual(runScript(repo, 'install.sh', ['-P', 'openrouter-solar', 'common'], piDir).status, 0);
+    const res = runScript(repo, 'uninstall.sh', ['-P', 'openrouter-solar', 'common'], piDir);
+    assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+    for (const n of AGENT_FILES) assert.ok(!fs.existsSync(path.join(piDir, 'agents', n)), n);
+    assert.ok(!fs.existsSync(path.join(piDir, 'AGENTS.md')));
+  });
+
+  test('worker/scout installed with -P are kept by an uninstall with a different profile', () => {
+    const repo = buildRepo();
+    const piDir = mkDir('ecc-pi-dest-');
+    assert.strictEqual(runScript(repo, 'install.sh', ['-P', 'openrouter-solar', 'common'], piDir).status, 0);
+    // Not manifest-owned, rendered differently without -P: treated as user-modified.
+    const res = runScript(repo, 'uninstall.sh', ['common'], piDir);
+    assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+    assert.ok(fs.existsSync(path.join(piDir, 'agents', 'worker.md')));
+  });
+
+  test('install -P then uninstall without -P removes shared agents via the manifest', () => {
+    const repo = buildRepo();
+    const piDir = mkDir('ecc-pi-dest-');
+    assert.strictEqual(runScript(repo, 'install.sh', ['-P', 'openrouter-solar', 'common'], piDir).status, 0);
+    const res = runScript(repo, 'uninstall.sh', ['common'], piDir);
+    assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+    assert.ok(!fs.existsSync(path.join(piDir, 'agents', 'planner.md')), 'manifest-owned');
+    assert.ok(!fs.existsSync(path.join(piDir, 'agents', 'notools.md')), 'manifest-owned');
+  });
+
+  test('dispatcher --target all -P reaches pi and is ignored by claude and codex', () => {
+    const home = mkDir('ecc-pi-home-');
+    const piDir = mkDir('ecc-pi-dest-');
+    const codexDir = mkDir('ecc-codex-dest-');
+    const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: piDir, CODEX_HOME: codexDir, ECC_SKIP_UPSTREAM: '1' };
+    const sh1 = path.join(repoRoot, 'scripts', 'install.sh');
+    const res = spawnSync('bash', [sh1, '-P', 'openrouter-solar', '--target', 'all', 'common'], { env, encoding: 'utf8' });
+    assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+    assert.ok(readAgent(piDir, 'worker.md').includes(`model: ${SOLAR}`));
+    assert.ok(fs.existsSync(path.join(home, '.claude')), 'claude installed');
+    assert.ok(fs.existsSync(path.join(codexDir, 'AGENTS.md')), 'codex installed');
+    const un = spawnSync('bash', [path.join(repoRoot, 'scripts', 'uninstall.sh'), '-P', 'openrouter-solar', '--target', 'all', 'common'], { env, encoding: 'utf8' });
+    assert.strictEqual(un.status, 0, un.stderr + un.stdout);
+    assert.ok(!fs.existsSync(path.join(piDir, 'agents', 'worker.md')));
+  });
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

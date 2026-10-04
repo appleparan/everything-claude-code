@@ -79,6 +79,7 @@ Options (shared by install and uninstall):
 | `-f` | Force-overwrite existing files (default is skip) |
 | `-p` | Prune orphaned files left by previous installs (see below) |
 | `-m` | Merge MCP servers from `content/mcp/servers.json` (off by default; install only; pi ignores it) |
+| `-P <profile>` | pi only: pin agent models from `content/targets/pi/models.json` (default: strip `model:`); other targets ignore it |
 | `-l` | List available languages |
 | `-h` | Show help |
 
@@ -239,7 +240,18 @@ Install and uninstall:
 ./scripts/install.sh --target pi common python   # -n, -f, -p work as above
 ./scripts/uninstall.sh --target pi common python
 ECC_SKIP_UPSTREAM=1 ./scripts/install.sh --target pi common   # skip the fetch
+./scripts/install.sh --target pi -P openrouter-solar common   # pin models, see below
 ```
+
+Agent models: by default the installer removes every `model:` line, so
+subagents inherit the model you pick in pi (`/model` or settings); switching
+models then needs no reinstall, which is the recommended mode. pi fuzzy-matches
+`--model <pattern>` across every provider it considers available, so a bare
+`opus` can silently route to an unintended, expensive provider. To pin a
+different model per tier instead, install with `-P <profile>` (profiles live in
+`content/targets/pi/models.json` and must use exact `provider/model-id`
+strings; pass the same `-P` to `uninstall.sh`). Claude and Codex accept `-P`
+and ignore it, so `--target all -P <profile>` works.
 
 Three limits to know:
 

@@ -48,9 +48,10 @@ EOF
 # Parse options
 DRY_RUN=false
 
-while getopts "nlh" opt; do
+while getopts "nlhP:" opt; do
     case $opt in
         n) DRY_RUN=true ;;
+        P) ;; # pi-only model profile: accepted and ignored
         l)
             echo "Available languages:"
             discover_languages | while read -r lang; do
