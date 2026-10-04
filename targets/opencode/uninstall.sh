@@ -127,10 +127,14 @@ if [[ -L "${OPENCODE_DIR}/AGENTS.md" ]] \
 else
     remove_file "${OPENCODE_DIR}/AGENTS.md" "AGENTS.md"
 fi
-# opencode.json: ours only when it is still the shipped file. A user-owned
-# one (skipped at install) stays, and opencode.jsonc is never looked at.
-remove_file_if_same "${CONTENT_ROOT}/targets/opencode/opencode.json" \
-    "${OPENCODE_DIR}/opencode.json" "opencode.json"
+# opencode.json: ours only when it is still a shipped version (current or
+# earlier). A user-owned one stays, and opencode.jsonc is never looked at.
+if [[ ! -e "${OPENCODE_DIR}/opencode.json" && ! -L "${OPENCODE_DIR}/opencode.json" ]] \
+    || opencode_json_is_ours "${OPENCODE_DIR}/opencode.json"; then
+    remove_file "${OPENCODE_DIR}/opencode.json" "opencode.json"
+else
+    log_keep "opencode.json"
+fi
 echo ""
 
 echo -e "${CYAN}[skills]${NC}"

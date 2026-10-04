@@ -285,11 +285,14 @@ Install and uninstall:
 ```
 
 Agent conversion: OpenCode silently drops an agent whose `tools:` is a list or
-whose `model:` has no `provider/` prefix. The installer therefore removes the
-`tools:` and `model:` lines (subagents use the model from your OpenCode
-configuration), adds `mode: subagent`, and turns the original tool list into
-permissions. An agent without Edit and Write gets an `edit` deny, one without
-Bash gets a `shell` deny. The body is unchanged.
+whose `model:` has no `provider/` prefix, and drops `permissions` when a
+`name:` key sits beside them. The installer therefore removes the `tools:`,
+`model:` and `name:` lines (the agent id is the filename; subagents use the
+model from your OpenCode configuration), adds `mode: subagent`, and turns the
+original tool list into permissions. An agent without Edit, MultiEdit and
+Write gets an `edit` deny, one without Bash gets a `shell` deny. The body is
+unchanged. An agent with a block-list or empty `tools:`, or with its own
+`permissions:`, is skipped with a WARN.
 
 Safety: OpenCode has no per-command sandbox by default. The installed
 `opencode.json` makes it ask before destructive shell commands (`rm -r`,
@@ -298,11 +301,14 @@ Safety: OpenCode has no per-command sandbox by default. The installed
 `opencode.json` first and your own `opencode.jsonc` after it, and the last
 matching rule wins, so rules in your `.jsonc` override these. The pattern
 `git push --force*` also matches `--force-with-lease`, which therefore asks
-too. If you already have an `opencode.json`, install leaves it alone and warns;
-merge the `permissions` from `content/targets/opencode/opencode.json`
-yourself. Install never parses or merges your config, and uninstall removes
-`opencode.json` only when it is still the shipped file and never touches
-`opencode.jsonc`.
+too, and `rm -*r*` also asks for `rm -f readme.txt`.
+Your own `opencode.json` can hold providers, API keys and MCP servers, so
+install writes the file only when it is absent or still a shipped version
+(current or from git history). Otherwise it leaves yours alone, even with
+`-f`, and warns: merge the `permissions` array from
+`content/targets/opencode/opencode.json` into your config by hand. Install
+never parses or merges your config. Uninstall removes `opencode.json` only
+under the same condition and never touches `opencode.jsonc`.
 
 Limits to know:
 

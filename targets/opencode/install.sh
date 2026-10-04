@@ -119,15 +119,25 @@ copy_file "$agents_tmp" "${OPENCODE_DIR}/AGENTS.md" \
 # concatenates their permissions, last match wins, so rules in the user's own
 # opencode.jsonc load later and override these. A pattern such as
 # `git push --force*` also matches --force-with-lease, which then asks too;
-# that is acceptable. The file is copied with copy_file semantics and never
-# parsed or merged: a user-owned opencode.json is left alone with a WARN.
+# that is acceptable. A user's opencode.json can hold providers, API keys and
+# MCP servers, so it is never overwritten (not even with -f), never parsed or
+# merged: we write the file only when it is absent, still the shipped file, or
+# an earlier shipped version; otherwise WARN and leave it to the user.
 oc_json_src="${CONTENT_ROOT}/targets/opencode/opencode.json"
 oc_json_dest="${OPENCODE_DIR}/opencode.json"
-copy_file "$oc_json_src" "$oc_json_dest" \
-    "content/targets/opencode/opencode.json" "opencode.json"
-if ! $DRY_RUN && [[ -f "$oc_json_dest" && ! -L "$oc_json_dest" ]] \
-    && ! dest_same_file "$oc_json_src" "$oc_json_dest"; then
-    log_warn "opencode.json exists and differs; merge the permissions from content/targets/opencode/opencode.json yourself (or re-run with -f to replace it)"
+if [[ -L "$oc_json_dest" ]]; then
+    log_symlink "opencode.json"
+    skipped=$((skipped + 1))
+elif [[ ! -e "$oc_json_dest" ]] || opencode_json_is_ours "$oc_json_dest"; then
+    # An earlier shipped version is upgraded even without -f.
+    saved_force=$FORCE
+    dest_same_file "$oc_json_src" "$oc_json_dest" || FORCE=true
+    copy_file "$oc_json_src" "$oc_json_dest" \
+        "content/targets/opencode/opencode.json" "opencode.json"
+    FORCE=$saved_force
+else
+    log_warn "opencode.json exists and is not ours; left untouched. Merge the permissions array from content/targets/opencode/opencode.json into your own config by hand"
+    skipped=$((skipped + 1))
 fi
 echo ""
 
@@ -196,6 +206,9 @@ for lang in "${LANGUAGES[@]}"; do
         manifest_add_checked "$lang" "agents/${name}" "$same" "$dest"
     done
 done
+if [[ -n "$OPENCODE_NAME_MISMATCHES" ]]; then
+    log_warn "agent id comes from the filename, not name: ${OPENCODE_NAME_MISMATCHES}"
+fi
 echo ""
 
 # Orphan pruning + manifest write (same flow as the pi target).

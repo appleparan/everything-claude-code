@@ -24,3 +24,17 @@ opencode_dest_label() {
         echo "~/.config/opencode"
     fi
 }
+
+target_display_name() {
+    echo "OpenCode"
+}
+
+# True (0) iff $1 is an opencode.json this installer may overwrite or remove:
+# byte-identical to the shipped file, or to an earlier shipped version found in
+# git history. Anything else is the user's own config (providers, API keys,
+# MCP servers) and must never be replaced or deleted. Needs prune.sh.
+opencode_json_is_ours() {
+    local src="${CONTENT_ROOT}/targets/opencode/opencode.json"
+    [[ -f "$1" && ! -L "$1" ]] || return 1
+    dest_same_file "$src" "$1" || prune_verify_file "$1" "content/targets/opencode/opencode.json"
+}

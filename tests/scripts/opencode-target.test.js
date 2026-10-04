@@ -178,7 +178,7 @@ test('converter drops tools and model, adds mode, keeps the body byte for byte',
   install(buildRepo(), ocDir);
   assert.strictEqual(
     read(ocDir, 'agents/full.md'),
-    '---\nname: full\ndescription: Does everything.\nmode: subagent\n---\n\ntools: ["Read"] stays in the body.\nmodel: opus stays too.\n'
+    '---\ndescription: Does everything.\nmode: subagent\n---\n\ntools: ["Read"] stays in the body.\nmodel: opus stays too.\n'
   );
 });
 
@@ -187,7 +187,7 @@ test('converter denies edit for agents without Edit and Write', () => {
   install(buildRepo(), ocDir);
   assert.strictEqual(
     read(ocDir, 'agents/readonly.md'),
-    `---\nname: readonly\ndescription: Reads.\nmode: subagent\npermissions:\n${DENY_EDIT}---\n\nRead.\n`
+    `---\ndescription: Reads.\nmode: subagent\npermissions:\n${DENY_EDIT}---\n\nRead.\n`
   );
 });
 
@@ -196,7 +196,7 @@ test('converter denies shell for agents without Bash', () => {
   install(buildRepo(), ocDir);
   assert.strictEqual(
     read(ocDir, 'agents/nobash.md'),
-    `---\nname: nobash\ndescription: Edits.\nmode: subagent\npermissions:\n${DENY_SHELL}---\n\nEdit.\n`
+    `---\ndescription: Edits.\nmode: subagent\npermissions:\n${DENY_SHELL}---\n\nEdit.\n`
   );
 });
 
@@ -204,7 +204,7 @@ test('converter emits both denies under one permissions key', () => {
   const ocDir = mkDir('ecc-oc-dest-');
   install(buildRepo(), ocDir);
   const out = read(ocDir, 'agents/both.md');
-  assert.strictEqual(out, `---\nname: both\ndescription: Reads only.\nmode: subagent\npermissions:\n${DENY_EDIT}${DENY_SHELL}---\n\nBoth.\n`);
+  assert.strictEqual(out, `---\ndescription: Reads only.\nmode: subagent\npermissions:\n${DENY_EDIT}${DENY_SHELL}---\n\nBoth.\n`);
   assert.strictEqual((out.match(/^permissions:/gm) || []).length, 1);
 });
 
@@ -213,7 +213,7 @@ test('converter adds no permissions without a tools line', () => {
   install(buildRepo(), ocDir);
   assert.strictEqual(
     read(ocDir, 'agents/notools.md'),
-    '---\nname: notools\ndescription: No tools line.\nmode: subagent\n---\n\nBody.\n'
+    '---\ndescription: No tools line.\nmode: subagent\n---\n\nBody.\n'
   );
 });
 
@@ -221,7 +221,116 @@ test('converter keeps an existing mode and does not add a second one', () => {
   const ocDir = mkDir('ecc-oc-dest-');
   install(buildRepo(), ocDir);
   const out = read(ocDir, 'agents/moded.md');
-  assert.strictEqual(out, '---\nname: moded\ndescription: Has a mode.\nmode: primary\n---\n\nBody.\n');
+  assert.strictEqual(out, '---\ndescription: Has a mode.\nmode: primary\n---\n\nBody.\n');
+});
+
+function render(md) {
+  const tmp = mkDir('ecc-oc-render-');
+  const f = path.join(tmp, 'a.md');
+  fs.writeFileSync(f, md);
+  const lib = path.join(repoRoot, 'scripts/lib/opencode-agents.sh');
+  return spawnSync('bash', ['-c', `source "${lib}"; opencode_agent_render "${f}"`], { encoding: 'utf8' });
+}
+
+test('converter drops the name line (OpenCode drops permissions next to name:)', () => {
+  const ocDir = mkDir('ecc-oc-dest-');
+  install(buildRepo(), ocDir);
+  for (const n of ['full', 'readonly', 'nobash', 'both', 'notools', 'moded']) {
+    assert.ok(!/^name:/m.test(read(ocDir, `agents/${n}.md`)), n);
+  }
+});
+
+test('converter handles CRLF files and keeps the original line endings', () => {
+  const md = '---\r\nname: a\r\ndescription: d\r\ntools: ["Read"]\r\nmodel: opus\r\n---\r\n\r\nBody\r\n';
+  const res = render(md);
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(
+    res.stdout,
+    '---\r\ndescription: d\r\nmode: subagent\r\npermissions:\r\n  - action: edit\r\n    resource: "*"\r\n    effect: deny\r\n  - action: shell\r\n    resource: "*"\r\n    effect: deny\r\n---\r\n\r\nBody\r\n'
+  );
+});
+
+test('converter treats Bash(...) as Bash and MultiEdit as edit', () => {
+  const res = render('---\nname: a\ndescription: d\ntools: ["Read", "Bash(git status)", "MultiEdit"]\n---\nB\n');
+  assert.strictEqual(res.stdout, '---\ndescription: d\nmode: subagent\n---\nB\n');
+});
+
+test('converter refuses block-list tools, empty tools and an existing permissions key', () => {
+  for (const fm of ['tools:\n  - Read\n  - Bash', 'tools: []', 'tools: ["Read"]\npermissions:\n  - action: edit']) {
+    const res = render(`---\nname: a\ndescription: d\n${fm}\n---\nB\n`);
+    assert.notStrictEqual(res.status, 0, fm);
+    assert.strictEqual(res.stdout, '', fm);
+  }
+});
+
+test('install skips such an agent with WARN and installs nothing', () => {
+  const repo = buildRepo();
+  fs.writeFileSync(path.join(repo, 'content/agents/common/blocky.md'), '---\nname: blocky\ndescription: d\ntools:\n  - Read\n---\nB\n');
+  const ocDir = mkDir('ecc-oc-dest-');
+  const res = install(repo, ocDir);
+  assert.ok(/WARN.*blocky/.test(res.stdout), res.stdout);
+  assert.ok(!exists(ocDir, 'agents/blocky.md'));
+  assert.ok(exists(ocDir, 'agents/full.md'));
+});
+
+test('install warns once when an agent name differs from its filename', () => {
+  const repo = buildRepo();
+  fs.writeFileSync(path.join(repo, 'content/agents/common/node-thing.md'), '---\nname: thing\ndescription: d\n---\nB\n');
+  const ocDir = mkDir('ecc-oc-dest-');
+  const res = install(repo, ocDir);
+  const warn = res.stdout.split('\n').filter((l) => /WARN.*node-thing/.test(l));
+  assert.strictEqual(warn.length, 1, res.stdout);
+  assert.ok(/thing/.test(warn[0]) && /filename/.test(warn[0]), warn[0]);
+  assert.ok(exists(ocDir, 'agents/node-thing.md'));
+});
+
+test('pi converter handles CRLF files and keeps the original line endings', () => {
+  const tmp = mkDir('ecc-pi-crlf-');
+  const f = path.join(tmp, 'a.md');
+  fs.writeFileSync(f, '---\r\nname: a\r\ntools: ["Read", "Glob"]\r\nmodel: opus\r\n---\r\nBody\r\n');
+  const lib = path.join(repoRoot, 'scripts/lib/pi-agents.sh');
+  const res = spawnSync('bash', ['-c', `source "${lib}"; pi_agent_render "${f}"`], { encoding: 'utf8' });
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(res.stdout, '---\r\nname: a\r\ntools: read, find\r\n---\r\nBody\r\n');
+});
+
+// ---------------------------------------------------------------------------
+// opencode.json rule coverage
+// ---------------------------------------------------------------------------
+// Anchored glob: `*` matches any characters; a trailing " *" also matches the
+// bare command.
+function globMatch(pattern, cmd) {
+  const toRe = (p) => new RegExp('^' + p.split('*').map((x) => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$');
+  if (toRe(pattern).test(cmd)) return true;
+  return pattern.endsWith(' *') && toRe(pattern.slice(0, -2)).test(cmd);
+}
+const anyRule = (cmd) => JSON.parse(realJson).permissions.some((r) => globMatch(r.resource, cmd));
+
+test('every destructive command matches some opencode.json rule', () => {
+  const bad = [
+    'rm -rf x', 'rm -fr x', 'rm -r x', 'rm -R x', 'rm -Rf x', 'rm --recursive x', 'rm -rf', '/bin/rm -rf x',
+    'sudo ls', 'git push --force', 'git push -f origin main', 'git push origin main --force',
+    'git push origin main -f', 'git push --force-with-lease', 'git -C /x push --force', 'git -C /x push origin -f',
+    'git -C /x push origin +main', 'git push origin +main', 'git push origin --delete feat/x',
+    'git push --delete origin feat/x', 'git push origin :feat', 'git -C /x push origin --delete x',
+    'git reset --hard HEAD~1', 'git -C /x reset --hard', 'git clean -f', 'git clean -fd', 'git clean -df',
+    'git clean -xdf', 'git clean -dfx', 'git clean -fdx', 'git clean -ffdx', 'git clean -d -f',
+    'git clean --force', 'git worktree remove --force x', 'git worktree remove -f x', 'git branch -D x',
+    'git commit --no-verify -m x', 'chmod 777 x', 'chmod -R 777 x', 'chown -R me /x',
+    'git checkout -- file', 'git restore file'
+  ];
+  const missed = bad.filter((c) => !anyRule(c));
+  assert.deepStrictEqual(missed, []);
+});
+
+test('common safe commands match no opencode.json rule', () => {
+  const safe = [
+    'git status', 'git push -u origin feat/x', 'git push origin feat/x:feat/x', 'git clean -n', 'git clean -nd src/foo',
+    'rm file.txt', 'ls -la', 'git commit -m "x"', 'git log --format=x', 'git diff', 'git checkout main',
+    'git checkout -b feat/x', 'git branch -d x', 'chmod 644 x', 'git -C /x status', 'git reset HEAD file'
+  ];
+  const hit = safe.filter(anyRule);
+  assert.deepStrictEqual(hit, []);
 });
 
 test('every shipped agent converts without tools/model lines and with sane frontmatter', () => {
@@ -237,7 +346,7 @@ test('every shipped agent converts without tools/model lines and with sane front
       assert.ok(m, `${f}: no frontmatter`);
       const fm = m[1];
       assert.ok(!/^(tools|model):/m.test(fm), `${f}: tools/model left`);
-      assert.ok(/^name: /m.test(fm) && /^description: /m.test(fm), `${f}: name/description lost`);
+      assert.ok(!/^name:/m.test(fm) && /^description: /m.test(fm), `${f}: name kept or description lost`);
       assert.strictEqual((fm.match(/^mode:/gm) || []).length, 1, `${f}: mode`);
       assert.ok((fm.match(/^permissions:/gm) || []).length <= 1, `${f}: permissions`);
       // Unquoted plain scalars with ": " or " #" are not valid strict YAML.
@@ -274,28 +383,64 @@ test('shipped opencode.json is valid JSON and every rule is a shell ask', () => 
   }
 });
 
-test('a user opencode.json is skipped with WARN, survives -f-less reinstall and uninstall', () => {
+test('a user opencode.json survives install, install -f and uninstall; WARN says merge, not -f', () => {
   const repo = buildRepo();
   const ocDir = mkDir('ecc-oc-dest-');
-  fs.writeFileSync(path.join(ocDir, 'opencode.json'), '{"theme":"mine"}\n');
-  const res = install(repo, ocDir);
-  assert.ok(/WARN.*opencode\.json/.test(res.stdout), res.stdout);
-  assert.strictEqual(read(ocDir, 'opencode.json'), '{"theme":"mine"}\n');
-
+  const mine = '{"provider":{"x":{"apiKey":"secret"}}}\n';
+  fs.writeFileSync(path.join(ocDir, 'opencode.json'), mine);
+  for (const args of [['common'], ['-f', 'common']]) {
+    const res = install(repo, ocDir, args);
+    const warn = res.stdout.split('\n').filter((l) => /WARN.*opencode\.json/.test(l));
+    assert.strictEqual(warn.length, 1, res.stdout);
+    assert.ok(/merge/i.test(warn[0]) && /permissions/.test(warn[0]), warn[0]);
+    assert.ok(!/-f/.test(warn[0]), warn[0]);
+    assert.ok(!/opencode\.json.*use -f/.test(res.stdout), res.stdout);
+    assert.strictEqual(read(ocDir, 'opencode.json'), mine);
+  }
   const un = runScript(repo, 'uninstall.sh', ['common'], ocDir);
   assert.strictEqual(un.status, 0, un.stderr + un.stdout);
-  assert.strictEqual(read(ocDir, 'opencode.json'), '{"theme":"mine"}\n');
+  assert.strictEqual(read(ocDir, 'opencode.json'), mine);
   assert.ok(!exists(ocDir, 'AGENTS.md'));
 });
 
-test('-f replaces opencode.json; a plain rerun of our own file is silent', () => {
+test('dry-run also warns for a user opencode.json and leaves it alone', () => {
   const repo = buildRepo();
   const ocDir = mkDir('ecc-oc-dest-');
-  fs.writeFileSync(path.join(ocDir, 'opencode.json'), '{"theme":"mine"}\n');
-  install(repo, ocDir, ['-f', 'common']);
+  fs.writeFileSync(path.join(ocDir, 'opencode.json'), 'mine\n');
+  const res = runScript(repo, 'install.sh', ['-n', 'common'], ocDir);
+  assert.ok(/WARN.*opencode\.json/.test(res.stdout), res.stdout);
+  assert.strictEqual(read(ocDir, 'opencode.json'), 'mine\n');
+});
+
+test('an opencode.json identical to an earlier shipped version is upgraded in place', () => {
+  const repo = buildRepo();
+  const git = (...a) => {
+    const r = spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], {
+      cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' }
+    });
+    assert.strictEqual(r.status, 0, r.stderr);
+  };
+  const shipped = path.join(repo, 'content/targets/opencode/opencode.json');
+  const old = '{"permissions":[]}\n';
+  fs.writeFileSync(shipped, old);
+  git('init', '-q');
+  git('add', 'content/targets/opencode/opencode.json');
+  git('commit', '-q', '-m', 'old');
+  fs.writeFileSync(shipped, realJson);
+  const ocDir = mkDir('ecc-oc-dest-');
+  fs.writeFileSync(path.join(ocDir, 'opencode.json'), old);
+  const res = install(repo, ocDir);
+  assert.ok(!/WARN.*opencode\.json/.test(res.stdout), res.stdout);
   assert.strictEqual(read(ocDir, 'opencode.json'), realJson);
-  const again = install(repo, ocDir);
+});
+
+test('a plain rerun of our own opencode.json is silent', () => {
+  const repo = buildRepo();
+  const ocDir = mkDir('ecc-oc-dest-');
+  install(repo, ocDir);
+  const again = install(repo, ocDir, ['-f', 'common']);
   assert.ok(!/WARN/.test(again.stdout), again.stdout);
+  assert.strictEqual(read(ocDir, 'opencode.json'), realJson);
 });
 
 test('opencode.jsonc is never touched by install or uninstall', () => {
