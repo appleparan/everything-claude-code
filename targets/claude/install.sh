@@ -351,8 +351,11 @@ $DRY_RUN || mkdir -p "$CLAUDE_DIR"
 global_claude="${CONTENT_ROOT}/instructions/global.md"
 if [[ -f "$global_claude" ]]; then
     echo -e "${CYAN}[global]${NC}"
-    copy_file "$global_claude" "${CLAUDE_DIR}/CLAUDE.md" \
-        "content/instructions/global.md" "CLAUDE.md"
+    claude_md_tmp=$(mktemp)
+    "${REPO_ROOT}/scripts/lib/build-agents-md.sh" - claude > "$claude_md_tmp"
+    copy_file "$claude_md_tmp" "${CLAUDE_DIR}/CLAUDE.md" \
+        "content/instructions/global.md (+claude addendum)" "CLAUDE.md"
+    rm -f "$claude_md_tmp"
     echo ""
 fi
 

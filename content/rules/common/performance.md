@@ -53,17 +53,17 @@ Astra pricing is from press coverage of the launch post
 (<https://openai.com/index/gpt-6-astra/>); confirm on the OpenAI
 pricing page before quoting it.
 
-### Tier Mapping (Claude ↔ Codex)
+### Tier Mapping (Claude ↔ Codex ↔ pi)
 
-Use the same role-based delegation in both tools. The parent runs on
+Use the same role-based delegation in every tool. The parent runs on
 the top tier; subagents run one or two tiers down.
 
-| Role | Claude Code | Codex |
-|------|-------------|-------|
-| Parent: planning, review | `fable` / `opus` | `gpt-6-astra` |
-| Deep reasoning subagent | `opus` | `gpt-5.6-sol` |
-| Implementation subagent | `sonnet` | `gpt-5.6-terra` (`worker`) |
-| Exploration / triage | `haiku` | `gpt-5.6-luna` (`explorer`) |
+| Role | Claude Code | Codex | pi |
+|------|-------------|-------|----|
+| Parent: planning, review | `fable` / `opus` | `gpt-6-astra` | any (your `--model`) |
+| Deep reasoning subagent | `opus` | `gpt-5.6-sol` | `opus` (planner, reviewers) |
+| Implementation subagent | `sonnet` | `gpt-5.6-terra` (`worker`) | `sonnet` (`worker`) |
+| Exploration / triage | `haiku` | `gpt-5.6-luna` (`explorer`) | `haiku` (`scout`) |
 
 Codex enforcement lives in config, not prose: `targets/codex/install.sh`
 installs `~/.codex/agents/{worker,explorer}.toml` (role files that pin

@@ -41,6 +41,31 @@ test('build-agents-md emits global body plus rules index', () => {
     'unselected language must not appear');
 });
 
+test('each target gets only its own harness addendum', () => {
+  const targets = ['claude', 'codex', 'pi'];
+  for (const target of targets) {
+    const res = spawnSync('bash', [buildAgents, '~/x', target, 'common'], { encoding: 'utf8' });
+    assert.strictEqual(res.status, 0, res.stderr);
+    const heading = fs.readFileSync(
+      path.join(repoRoot, 'content', 'targets', target, 'instructions.md'), 'utf8')
+      .split('\n')[0];
+    assert.ok(res.stdout.includes(heading), `${target}: own addendum missing`);
+    for (const other of targets.filter((t) => t !== target)) {
+      const otherHeading = fs.readFileSync(
+        path.join(repoRoot, 'content', 'targets', other, 'instructions.md'), 'utf8')
+        .split('\n')[0];
+      assert.ok(!res.stdout.includes(otherHeading), `${target}: leaked ${other} addendum`);
+    }
+  }
+});
+
+test('build-agents-md omits the rules index when no language is given', () => {
+  const res = spawnSync('bash', [buildAgents, '-', 'claude'], { encoding: 'utf8' });
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.ok(res.stdout.includes('## Harness: Claude Code'), 'claude addendum missing');
+  assert.ok(!res.stdout.includes('## Rules Index'), 'index must be omitted');
+});
+
 const os = require('os');
 
 // build-agents-md derives REPO_ROOT from its own location, so run a copy of it
