@@ -82,6 +82,11 @@ Options (shared by install and uninstall):
 | `-l` | List available languages |
 | `-h` | Show help |
 
+Install never writes through a symlink, even with `-f`. If a destination
+such as `~/.claude/CLAUDE.md` is a link into your dotfiles, install skips
+it with a warning. Update the link target by hand, or remove the link and
+run install again.
+
 ### Pruning orphaned files (`-p`)
 
 Every non-dry-run install writes `.ecc-manifest` next to the installed files
@@ -232,7 +237,7 @@ Install and uninstall:
 
 ```bash
 ./scripts/install.sh --target pi common python   # -n, -f, -p work as above
-./scripts/uninstall.sh --target pi
+./scripts/uninstall.sh --target pi common python
 ECC_SKIP_UPSTREAM=1 ./scripts/install.sh --target pi common   # skip the fetch
 ```
 
@@ -241,7 +246,8 @@ Three limits to know:
 - pi has no permission prompts or sandbox. The `ecc-safety` extension blocks
   or asks before destructive commands (`rm -rf`, `sudo`, `git push --force`,
   and similar) and unneeded `.md`/`.txt` writes. It is a pattern list, not a
-  security boundary.
+  security boundary. Without a UI (subagents, `pi -p`) it blocks those
+  commands; set `ECC_SAFETY_HEADLESS=allow` to let them run.
 - The subagent extension comes from a pinned upstream commit. If it breaks
   with your pi version, bump `ref` in
   `content/targets/pi/upstream-extensions.json` and re-run with `-f`.
@@ -256,7 +262,7 @@ pi is detected via `$PI_CODING_AGENT_DIR`, an existing `~/.pi` directory, or a
 ./scripts/uninstall.sh                    # all targets (codex and pi skipped if absent)
 ./scripts/uninstall.sh --target claude
 ./scripts/uninstall.sh --target codex
-./scripts/uninstall.sh --target pi
+./scripts/uninstall.sh --target pi common python
 ```
 
 `uninstall.sh --target codex` removes the installed files but never touches
