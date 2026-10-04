@@ -5,14 +5,15 @@
 - **Code, commits, PR/MR**: English
 - **Conversation with user**: Korean
 
-## Model Delegation
+## Delegation
 
-For all coding tasks, run the work in a subagent on a lower-power
-model and reserve the top-tier model (the one you are running on) for
-planning and review. The same rule applies in every tool; how to
-spawn the subagent is in the "Harness" section below.
+For coding tasks, hand implementation and exploration to subagents and
+keep planning and review for yourself. Which model a subagent runs on
+is set by the harness and its configuration, not by this file: the
+"Harness" section below says how to spawn one and whether it can use a
+cheaper model.
 
-Tier mapping, for when a model must be named explicitly, lives in the
+Tier mapping, for harnesses that name models explicitly, lives in the
 `performance` rule (Model Catalog).
 
 ## Before Writing Code
