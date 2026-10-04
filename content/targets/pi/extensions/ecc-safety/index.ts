@@ -3,7 +3,11 @@
  *
  * - Destructive bash (rm -r, sudo, chmod/chown 777, git push --force, reset --hard,
  *   clean -f, worktree remove --force, branch -D, --no-verify): confirm with the
- *   user, or block when there is no UI. --force-with-lease is allowed.
+ *   user, or block when there is no UI. --force-with-lease is allowed. Git global
+ *   options (-C, -c, --git-dir, ...) and `+ref` force pushes are recognized.
+ *   Headless runs (subagent children use `pi -p`, no UI) block by default; set
+ *   ECC_SAFETY_HEADLESS=allow in the environment to allow destructive commands
+ *   there (the parent's own approval is then the only gate).
  * - Doc blocker: refuses `write` of a NEW .md/.txt file unless README.md, CLAUDE.md,
  *   AGENTS.md, CONTRIBUTING.md, IMPLEMENTATION_PLAN.md or SKILL.md.
  * - git push: reminder to review changes, then allow.
@@ -16,7 +20,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import policy from "./policy.cjs";
 
-const { classifyBash, isBlockedDocWrite, extractPrUrl, isPrCreate } = policy;
+const { classifyBash, isBlockedDocWrite, extractPrUrl, isPrCreate, headlessDecision } = policy;
 
 export default function (pi: ExtensionAPI) {
 	pi.on("tool_call", async (event, ctx) => {
@@ -29,7 +33,11 @@ export default function (pi: ExtensionAPI) {
 			}
 			if (verdict.kind !== "destructive") return undefined;
 			if (!ctx.hasUI) {
-				return { block: true, reason: `Destructive command blocked (${verdict.reason}; no UI for confirmation)` };
+				if (!headlessDecision(process.env).block) return undefined;
+				return {
+					block: true,
+					reason: `Destructive command blocked (${verdict.reason}; no UI for confirmation; set ECC_SAFETY_HEADLESS=allow to permit)`,
+				};
 			}
 			const choice = await ctx.ui.select(
 				`Destructive command (${verdict.reason}):\n\n  ${command}\n\nAllow?`,
@@ -50,7 +58,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("tool_result", async (event, ctx) => {
 		if (event.toolName !== "bash" || !isPrCreate(String(event.input.command ?? ""))) return undefined;
-		const text = event.content.map((c) => (c.type === "text" ? c.text : "")).join("\n");
+		const text = (event.content ?? []).map((c) => (c.type === "text" ? c.text : "")).join("\n");
 		const url = extractPrUrl(text);
 		if (url && ctx.hasUI) ctx.ui.notify(`PR created: ${url}`, "info");
 		return undefined;

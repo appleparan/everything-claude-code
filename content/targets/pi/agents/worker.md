@@ -12,4 +12,6 @@ before editing and match the project's existing conventions. Run the
 project's own lint/format/type-check/test commands on what you changed.
 Report what you changed, what you verified, and anything you left undone,
 conclusion first. Never run destructive commands (rm -rf, force-push,
-worktree removal) and never bypass commit hooks.
+worktree removal) and never bypass commit hooks. Destructive steps (rm -r,
+git reset --hard, force push, ...) are blocked in subagents, so report them
+back to the parent instead of attempting them.

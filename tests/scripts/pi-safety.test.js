@@ -5,7 +5,7 @@
 const assert = require('assert');
 const path = require('path');
 
-const { classifyBash, isBlockedDocWrite, extractPrUrl, isPrCreate } = require(
+const { classifyBash, isBlockedDocWrite, extractPrUrl, isPrCreate, headlessDecision } = require(
   path.join(__dirname, '..', '..', 'content', 'targets', 'pi', 'extensions', 'ecc-safety', 'policy.cjs'));
 
 let passed = 0;
@@ -86,6 +86,35 @@ test('isPrCreate matches gh pr create only', () => {
   assert.ok(isPrCreate('gh pr create --title x'));
   assert.ok(!isPrCreate('gh pr view 1'));
   assert.ok(!isPrCreate('echo hi'));
+});
+
+// Git global options between `git` and the subcommand must not hide a command.
+for (const c of [
+  'git -C repo push --force origin main', 'git -C "my repo" push -f', "git -C 'my repo' reset --hard",
+  'git -c x=y reset --hard', 'git -c user.name=a -C r clean -fd', 'git --git-dir=.git push --force',
+  'git --git-dir .git --work-tree . reset --hard', 'git --no-pager branch -D feat',
+  'git -C r worktree remove --force wt', 'git --work-tree=w clean --force',
+  'git push origin +main', 'git push origin +HEAD:refs/heads/x', 'git -C repo push +main',
+  'git push +main origin',
+]) {
+  test(`destructive via global options / + refspec: ${c}`, () => assert.strictEqual(classifyBash(c).kind, 'destructive'));
+}
+test('git -C <path> push without force is a push reminder', () => {
+  assert.strictEqual(classifyBash('git -C repo push origin main').kind, 'push');
+  assert.strictEqual(classifyBash('git -c x=y push --force-with-lease').kind, 'push');
+});
+for (const c of ['git -C repo status', 'git -c x=y log', 'git push origin a+b', 'git -C r reset --soft HEAD~1',
+  'git --no-pager branch -d feat']) {
+  test(`ok with global options: ${c}`, () => assert.notStrictEqual(classifyBash(c).kind, 'destructive'));
+}
+
+test('headless runs block destructive commands by default', () => {
+  assert.strictEqual(headlessDecision({}).block, true);
+  assert.strictEqual(headlessDecision({ ECC_SAFETY_HEADLESS: 'deny' }).block, true);
+  assert.strictEqual(headlessDecision(undefined).block, true);
+});
+test('ECC_SAFETY_HEADLESS=allow opts out of the headless block', () => {
+  assert.strictEqual(headlessDecision({ ECC_SAFETY_HEADLESS: 'allow' }).block, false);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
