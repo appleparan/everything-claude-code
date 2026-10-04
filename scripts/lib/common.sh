@@ -58,8 +58,28 @@ codex_agents_label() {
     fi
 }
 
-codex_is_available() {
-    [[ -n "${CODEX_HOME:-}" ]] || [[ -d "$CODEX_DIR" ]] || command -v codex &>/dev/null
+# Target registry: every targets/<name>/target.sh defines target_is_available
+# (and optionally target_description). Each is sourced in a subshell so
+# function names cannot clash between targets.
+discover_targets() {
+    local f
+    for f in "${REPO_ROOT}"/targets/*/target.sh; do
+        [[ -f "$f" ]] || continue
+        basename "$(dirname "$f")"
+    done | sort
+}
+
+# True (0) iff target $1 is installed on this machine.
+target_detected() {
+    # shellcheck disable=SC1090
+    ( source "${REPO_ROOT}/targets/$1/target.sh"; target_is_available )
+}
+
+# One-line description of target $1 (empty when it defines none).
+target_summary() {
+    # shellcheck disable=SC1090
+    ( source "${REPO_ROOT}/targets/$1/target.sh"
+      if declare -F target_description >/dev/null; then target_description; fi )
 }
 
 # Copy a single file

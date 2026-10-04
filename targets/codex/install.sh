@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "${REPO_ROOT}/scripts/lib/common.sh"
+# shellcheck source=target.sh
+source "${SCRIPT_DIR}/target.sh"
 # shellcheck source=../../scripts/lib/prune.sh
 source "${REPO_ROOT}/scripts/lib/prune.sh"
 PRUNE_TARGET="codex"
@@ -67,7 +69,7 @@ for lang in "${LANGUAGES[@]}"; do
     fi
 done
 
-if ! codex_is_available; then
+if ! target_is_available; then
     echo -e "${RED}Error: Codex not detected (set CODEX_HOME, create ~/.codex, or install codex)${NC}"
     exit 1
 fi
