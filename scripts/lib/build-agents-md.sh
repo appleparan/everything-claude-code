@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
-# Generate Codex AGENTS.md on stdout: the global instructions followed by an
+# Generate an AGENTS.md on stdout: the global instructions, the target's own
+# addendum (content/targets/<target>/instructions.md, when present), then an
 # index of rules files installed under <dest-label>.
-# Usage: build-agents-md.sh <dest-label> <lang>...
+# Usage: build-agents-md.sh <dest-label> <target> <lang>...
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONTENT_ROOT="${REPO_ROOT}/content"
 
-DEST_LABEL="${1:?usage: build-agents-md.sh <dest-label> <lang>...}"
-shift
+DEST_LABEL="${1:?usage: build-agents-md.sh <dest-label> <target> <lang>...}"
+TARGET="${2:?usage: build-agents-md.sh <dest-label> <target> <lang>...}"
+shift 2
 
 cat "${CONTENT_ROOT}/instructions/global.md"
+
+addendum="${CONTENT_ROOT}/targets/${TARGET}/instructions.md"
+if [[ -f "$addendum" ]]; then
+    echo ""
+    cat "$addendum"
+fi
 
 echo ""
 echo "## Rules Index"

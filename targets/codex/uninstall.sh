@@ -6,6 +6,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "${REPO_ROOT}/scripts/lib/common.sh"
 # shellcheck source=target.sh
 source "${SCRIPT_DIR}/target.sh"
+# shellcheck source=../../scripts/lib/external-skills.sh
+source "${REPO_ROOT}/scripts/lib/external-skills.sh"
 
 usage() {
     cat <<EOF
@@ -112,7 +114,7 @@ if [[ -f "$ext_src" ]]; then
                     continue ;;
             esac
             remove_dir "${CODEX_DIR}/skills/${ext_name}" "skills/${ext_name}/"
-        done < <(jq -r '(.skills // [])[].name' "$ext_src")
+        done < <(external_skill_names codex)
     else
         log_info "jq not found; remove external skills from external-skills.json manually"
     fi

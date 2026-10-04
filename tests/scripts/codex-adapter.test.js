@@ -8,7 +8,7 @@ const fs = require('fs');
 const { spawnSync } = require('child_process');
 
 const repoRoot = path.join(__dirname, '..', '..');
-const buildAgents = path.join(repoRoot, 'targets', 'codex', 'build-agents-md.sh');
+const buildAgents = path.join(repoRoot, 'scripts', 'lib', 'build-agents-md.sh');
 
 let passed = 0;
 let failed = 0;
@@ -24,7 +24,7 @@ function test(name, fn) {
 }
 
 test('build-agents-md emits global body plus rules index', () => {
-  const res = spawnSync('bash', [buildAgents, '~/.codex/instructions', 'common', 'python'], {
+  const res = spawnSync('bash', [buildAgents, '~/.codex/instructions', 'codex', 'common', 'python'], {
     encoding: 'utf8'
   });
   assert.strictEqual(res.status, 0, res.stderr);
@@ -42,6 +42,46 @@ test('build-agents-md emits global body plus rules index', () => {
 });
 
 const os = require('os');
+
+// build-agents-md derives REPO_ROOT from its own location, so run a copy of it
+// inside a temp tree to exercise content/targets/<t>/instructions.md without
+// touching the real content/.
+function buildInTempTree(addendumTarget, addendumText, target) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-agentsmd-'));
+  fs.mkdirSync(path.join(root, 'scripts', 'lib'), { recursive: true });
+  fs.copyFileSync(buildAgents, path.join(root, 'scripts', 'lib', 'build-agents-md.sh'));
+  fs.mkdirSync(path.join(root, 'content', 'instructions'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'content', 'instructions', 'global.md'), '# Global\n\nGLOBAL BODY\n');
+  fs.mkdirSync(path.join(root, 'content', 'rules', 'common'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'content', 'rules', 'common', 'r.md'), '# Rule R\n');
+  if (addendumText !== null) {
+    fs.mkdirSync(path.join(root, 'content', 'targets', addendumTarget), { recursive: true });
+    fs.writeFileSync(path.join(root, 'content', 'targets', addendumTarget, 'instructions.md'), addendumText);
+  }
+  return spawnSync('bash', [path.join(root, 'scripts', 'lib', 'build-agents-md.sh'), 'dest/instr', target, 'common'],
+    { encoding: 'utf8' });
+}
+
+test('build-agents-md appends content/targets/<t>/instructions.md after global and before the index', () => {
+  const res = buildInTempTree('fake', '## Fake Addendum\n\nFAKE BODY\n', 'fake');
+  assert.strictEqual(res.status, 0, res.stderr);
+  const out = res.stdout;
+  const g = out.indexOf('GLOBAL BODY');
+  const a = out.indexOf('## Fake Addendum');
+  const i = out.indexOf('## Rules Index');
+  assert.ok(g >= 0 && g < a && a < i, `order must be global, addendum, index: ${out}`);
+  assert.ok(out.includes('GLOBAL BODY\n\n## Fake Addendum'), 'addendum must be preceded by a blank line');
+});
+
+test('build-agents-md ignores another target\'s addendum and a missing one', () => {
+  const other = buildInTempTree('fake', 'LEAK CHECK\n', 'codex');
+  assert.strictEqual(other.status, 0, other.stderr);
+  assert.ok(!other.stdout.includes('LEAK CHECK'), 'addendum of another target must not leak');
+  const none = buildInTempTree('fake', null, 'fake');
+  assert.strictEqual(none.status, 0, none.stderr);
+  assert.ok(none.stdout.includes('## Rules Index'));
+});
+
 const mergeMcp = path.join(repoRoot, 'targets', 'codex', 'merge-mcp.py');
 const hasUv = spawnSync('uv', ['--version'], { encoding: 'utf8' }).status === 0;
 

@@ -57,9 +57,10 @@ cd everything-claude-code
 ./scripts/install.sh -l
 ```
 
-`scripts/install.sh` is a thin `--target claude|codex|all` dispatcher (default
-`all`) over `targets/claude/install.sh` and `targets/codex/install.sh`, which
-both read from the single `content/` source tree.
+`scripts/install.sh` is a thin `--target <name>|all` dispatcher (default `all`)
+over the targets discovered under `targets/*/target.sh` (today `claude` and
+`codex`), which all read from the single `content/` source tree. `all` runs
+`claude` first, then every other target that reports itself available.
 
 Available languages: `common`, `infra`, `node`, `python`, `rust`, `typescript`.
 `common` holds language-agnostic content; you almost always want it plus the
@@ -242,30 +243,36 @@ everything-claude-code/
 |   |   |-- common/, infra/, node/, python/, rust/
 |   |-- rules/                 # Always-follow guidelines (Claude Code + Codex)
 |   |   |-- common/, infra/, node/, python/, rust/, typescript/
-|   |-- hooks/                 # Trigger-based automations (Claude Code only)
-|   |   |-- common/, infra/, node/, python/, rust/
 |   |-- mcp/
 |   |   |-- servers.json     # MCP server catalog, tagged per language (manual copy for Claude Code, filtered merge into Codex config.toml)
-|   |-- codex/                 # Codex-native config (Codex only)
-|       |-- agents/            # Subagent role files -> ~/.codex/agents/ (worker=terra, explorer=luna)
-|       |-- config.toml        # [agents] defaults merged into ~/.codex/config.toml
+|   |-- external-skills.json   # External skills cloned at install time (optional per-entry "targets")
+|   |-- targets/               # Content that only one target consumes
+|       |-- claude/
+|       |   |-- plugins.json   # Tracked plugins + marketplaces merged into settings.json
+|       |   |-- hooks/         # Trigger-based automations (common/, infra/, node/, python/, rust/)
+|       |-- codex/
+|           |-- agents/        # Subagent role files -> ~/.codex/agents/ (worker=terra, explorer=luna)
+|           |-- config.toml    # [agents] defaults merged into ~/.codex/config.toml
 |
 |-- targets/           # Per-target adapters - mapping/transform only, no content
 |   |-- claude/
+|   |   |-- target.sh         # Registry entry: target_is_available()
 |   |   |-- install.sh        # content/* -> ~/.claude/*
 |   |   |-- uninstall.sh
 |   |-- codex/
+|       |-- target.sh
 |       |-- install.sh        # content/* -> ~/.codex/* (see Codex support above)
 |       |-- uninstall.sh
-|       |-- build-agents-md.sh  # Generates AGENTS.md (global.md + rules index)
 |       |-- merge-mcp.py        # servers.json -> config.toml [mcp_servers.*] merge
 |       |-- merge-config.py     # content/targets/codex/config.toml -> config.toml [agents] merge
 |
 |-- scripts/          # Thin dispatchers + hook runtime scripts
-|   |-- install.sh           # --target claude|codex|all (default all)
-|   |-- uninstall.sh         # --target claude|codex|all (default all)
+|   |-- install.sh           # --target <name>|all (default all)
+|   |-- uninstall.sh         # --target <name>|all (default all)
 |   |-- init-project.sh      # Initialize project hooks
-|   |-- lib/common.sh        # Shared copy/log/dry-run helpers for targets/
+|   |-- lib/common.sh        # Shared copy/log/dry-run helpers + target registry
+|   |-- lib/build-agents-md.sh   # AGENTS.md generator (global.md + target addendum + rules index)
+|   |-- lib/external-skills.sh   # Installs content/external-skills.json for a target
 |   |-- node/                # Node.js hook runtime scripts
 |   |   |-- lib/, hooks/, ci/
 |   |-- python/              # Python hook runtime scripts (as they land)
