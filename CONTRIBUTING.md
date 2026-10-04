@@ -86,15 +86,18 @@ appropriate directory:
 - `content/skills/<lang>/` for skills (a directory containing `SKILL.md`)
 - `content/commands/<lang>/` for slash commands
 - `content/rules/<lang>/` for rule files
-- `content/hooks/<lang>/` for hook configurations
+- `content/targets/claude/hooks/<lang>/` for hook configurations
 - `content/mcp/` for MCP server configs
-- `content/codex/` for Codex-native config (subagent role files, `[agents]` defaults)
+- `content/targets/<target>/` for content only one target consumes (Codex
+  subagent role files, pi extensions, per-target `instructions.md` addenda)
+- `content/external-skills.json` for external skills cloned at install time
 
 Target-specific install logic (how content gets copied into `~/.claude` or
-`~/.codex`) lives in `targets/<target>/` (`targets/claude/`,
-`targets/codex/`), not alongside the content itself. New content only needs
-a place under `content/`; you shouldn't need to touch `targets/` unless
-you're changing how a category is installed.
+`~/.codex`, `~/.pi/agent`) lives in `targets/<target>/` (`claude`, `codex`,
+`pi`; each has a `target.sh` registry entry), not alongside the content itself.
+New content only needs a place under `content/`; you shouldn't need to touch
+`targets/` unless you're changing how a category is installed. To add a whole
+new target, see "Adding a target" in the README.
 
 ### 4. Follow the format
 

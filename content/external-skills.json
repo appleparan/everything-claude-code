@@ -17,8 +17,9 @@
     }
   ],
   "_comments": {
-    "usage": "External Codex skills installed by targets/codex/install.sh into $CODEX_DIR/skills/<name>/. Each entry is shallow-cloned and <path> (which must contain SKILL.md) is copied.",
-    "claude": "The Claude Code side of these tools is tracked separately in plugins.json (humanize-korean@im-not-ai, humanizer@humanizer, added in PR #34; simple-english@simple-english).",
+    "usage": "External skills installed by target install scripts (scripts/lib/external-skills.sh) into the target's skills directory, e.g. $CODEX_DIR/skills/<name>/. Each entry is shallow-cloned and <path> (which must contain SKILL.md) is copied.",
+    "targets": "Optional per-entry array of target names (e.g. [\"codex\"]). An entry without it installs for every target that supports external skills; with it, only for the listed targets.",
+    "claude": "The Claude Code side of these tools is tracked separately in targets/claude/plugins.json (humanize-korean@im-not-ai, humanizer@humanizer, added in PR #34; simple-english@simple-english).",
     "humanizer": "blader/humanizer documents no official Codex install; its root SKILL.md is self-contained, so the repo root is installed as the skill directory.",
     "simple-english": "AminBlg/SimpleEnglish ships a Codex plugin (.codex-plugin/) with a SessionStart hook, but this repo tracks Codex skills, not Codex plugins, so only the skill directory is installed. The Claude plugin side carries the hooks and the simple-english:simple-english output style.",
     "trust": "Entries are unpinned: each install clones the default-branch HEAD, so upstream pushes land in ~/.codex/skills/ on the next -f install. This mirrors the Claude plugin auto-update behavior and is a deliberate trust decision — only list repos you trust; pin by switching repo to a fork if needed."

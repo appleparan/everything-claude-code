@@ -16,6 +16,7 @@ const testFiles = [
   'hooks/hooks.test.js',
   'integration/hooks.test.js',
   'ci/validators.test.js',
+  'ci/frontmatter-yaml.test.js',
   'ci/no-personal-paths.test.js',
   'ci/validate-workflow-security.test.js',
   'ci/scan-supply-chain-iocs.test.js',
@@ -29,7 +30,9 @@ const testFiles = [
   'scripts/jq-missing.test.js',
   'scripts/codex-adapter.test.js',
   'scripts/codex-external-skills.test.js',
-  'scripts/codex-agents.test.js'
+  'scripts/codex-agents.test.js',
+  'scripts/pi-safety.test.js',
+  'scripts/pi-target.test.js'
 ];
 
 const BOX_W = 58; // inner width between delimiters

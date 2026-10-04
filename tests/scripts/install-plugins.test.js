@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Tests for plugin migration: targets/claude/install.sh must merge
- * content/plugins/plugins.json (enabledPlugins + extraKnownMarketplaces)
+ * content/targets/claude/plugins.json (enabledPlugins + extraKnownMarketplaces)
  * into ~/.claude/settings.json, and uninstall.sh must remove only the
  * repo-tracked entries.
  *
@@ -42,7 +42,7 @@ function writeFixtureContent(dir, { withPlugins = true } = {}) {
   w('content/agents/common/planner.md', '# Planner\n');
   w('content/rules/common/coding-style.md', '# Coding Style\n');
   if (withPlugins) {
-    w('content/plugins/plugins.json', JSON.stringify(PLUGINS_JSON, null, 2) + '\n');
+    w('content/targets/claude/plugins.json', JSON.stringify(PLUGINS_JSON, null, 2) + '\n');
   }
 }
 
@@ -211,9 +211,9 @@ test('install -n does not create settings.json but lists plugins', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. Repo without content/plugins/plugins.json: install still succeeds
+// 6. Repo without content/targets/claude/plugins.json: install still succeeds
 // ---------------------------------------------------------------------------
-test('install without content/plugins/plugins.json is a no-op for plugins', () => {
+test('install without content/targets/claude/plugins.json is a no-op for plugins', () => {
   const repo = buildRepo({ withPlugins: false });
   const home = mkHome();
   const res = runScript(repo, 'install.sh', ['common'], home);

@@ -16,27 +16,41 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+TARGETS=()
+while IFS= read -r t; do
+    [[ -n "$t" ]] && TARGETS+=("$t")
+done < <(discover_targets)
+
+join_by() {
+    local sep="$1" out="" item
+    shift
+    for item in "$@"; do
+        out="${out:+${out}${sep}}${item}"
+    done
+    echo "$out"
+}
+
 usage_dispatcher() {
-    cat <<EOF
-Usage: $(basename "$0") [--target claude|codex|all] [OPTIONS] <language>...
-
-Targets:
-  claude   Install to ~/.claude (default components)
-  codex    Install shared content to ~/.codex (AGENTS.md, instructions, skills, MCP)
-  all      Both (default; codex skipped when not detected)
-
-Common option worth knowing about here: -p prunes orphaned files left behind
-by previous installs (tracked via .ecc-manifest, with a git-history fallback
-on the first run). See below for the full set of target-specific options.
-
-Target-specific options follow below.
-EOF
+    echo "Usage: $(basename "$0") [--target $(join_by '|' "${TARGETS[@]}" all)] [OPTIONS] <language>..."
+    echo ""
+    echo "Targets:"
+    local t
+    for t in "${TARGETS[@]}"; do
+        printf '  %-8s %s\n' "$t" "$(target_summary "$t")"
+    done
+    echo "  all      Every target (default; targets other than claude skipped when not detected)"
+    echo ""
+    echo "Common option worth knowing about here: -p prunes orphaned files left behind"
+    echo "by previous installs (tracked via .ecc-manifest, with a git-history fallback"
+    echo "on the first run). See below for the full set of target-specific options."
+    echo ""
+    echo "Target-specific options follow below."
 }
 
 # When no explicit --target was given and -h is requested, surface the
 # dispatcher's own usage (which documents --target) before falling through
 # to the claude target's usage, instead of silently defaulting to "all" and
-# potentially printing two concatenated usage blocks (claude + codex).
+# potentially printing several concatenated usage blocks.
 if ! $TARGET_EXPLICIT; then
     for arg in "${PASS_ARGS[@]:-}"; do
         if [[ "$arg" == "-h" ]]; then
@@ -47,19 +61,24 @@ if ! $TARGET_EXPLICIT; then
     done
 fi
 
-case "$TARGET" in
-    claude) exec "${REPO_ROOT}/targets/claude/install.sh" "${PASS_ARGS[@]:-}" ;;
-    codex) exec "${REPO_ROOT}/targets/codex/install.sh" "${PASS_ARGS[@]:-}" ;;
-    all)
-        "${REPO_ROOT}/targets/claude/install.sh" "${PASS_ARGS[@]:-}"
-        if codex_is_available; then
-            "${REPO_ROOT}/targets/codex/install.sh" "${PASS_ARGS[@]:-}"
+if [[ "$TARGET" == "all" ]]; then
+    "${REPO_ROOT}/targets/claude/install.sh" "${PASS_ARGS[@]:-}"
+    for t in "${TARGETS[@]}"; do
+        [[ "$t" == "claude" ]] && continue
+        if target_detected "$t"; then
+            "${REPO_ROOT}/targets/${t}/install.sh" "${PASS_ARGS[@]:-}"
         else
-            log_info "Codex not detected; skipping codex target"
+            label="$(printf '%s' "${t:0:1}" | tr '[:lower:]' '[:upper:]')${t:1}"
+            log_info "${label} not detected; skipping ${t} target"
         fi
-        ;;
-    *)
-        echo -e "${RED}Error: Unknown target '${TARGET}' (expected claude, codex, or all)${NC}"
-        exit 1
-        ;;
-esac
+    done
+    exit 0
+fi
+
+for t in "${TARGETS[@]}"; do
+    if [[ "$TARGET" == "$t" ]]; then
+        exec "${REPO_ROOT}/targets/${t}/install.sh" "${PASS_ARGS[@]:-}"
+    fi
+done
+echo -e "${RED}Error: Unknown target '${TARGET}' (expected $(join_by ', ' "${TARGETS[@]}"), or all)${NC}"
+exit 1

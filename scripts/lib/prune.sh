@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Manifest read/write and orphan-pruning helpers, shared by
-# targets/claude/install.sh and targets/codex/install.sh.
+# targets/{claude,codex,pi}/install.sh.
 #
 # Callers must source scripts/lib/common.sh first (REPO_ROOT, FORCE,
 # DRY_RUN, log_* helpers, remove_file/remove_dir), then set PRUNE_TARGET to
-# "claude" or "codex" before calling run_prune/manifest_write.
+# "claude", "codex" or "pi" before calling run_prune/manifest_write.
 #
 # bash 3.2 compatible: no associative arrays, no mapfile/readarray. Lang
 # membership checks use newline-joined strings + `grep -Fxq` instead.
@@ -22,6 +22,91 @@ MANIFEST_ENTRIES=()
 # or "skills/some-skill" for a skill directory).
 manifest_add() {
     MANIFEST_ENTRIES+=("${1}"$'\t'"${2}")
+}
+
+# Dests this run installs that are deliberately NOT in the manifest
+# (language-agnostic: codex roles, pi worker/scout, extensions). Recorded so
+# the git-history fallback never offers them for deletion, even when an old
+# path of the same dest shows up as deleted in history.
+INSTALLED_UNMANIFESTED=()
+
+# $1=relpath relative to the target's base dir.
+installed_unmanifested_add() {
+    INSTALLED_UNMANIFESTED+=("$1")
+}
+
+# Everything this run installs, manifested or not, one relpath per line.
+installed_full_dest_set() {
+    manifest_full_dest_set
+    if [[ ${#INSTALLED_UNMANIFESTED[@]} -gt 0 ]]; then
+        printf '%s\n' "${INSTALLED_UNMANIFESTED[@]}"
+    fi
+}
+
+# Like manifest_add, but for a dest this run did not leave identical to what
+# it installs (a skipped user file, an edited copy). It still counts as "this
+# run's dest" so it is never reported as an orphan, but it is not written to
+# the manifest, so a later -p can never delete it.
+MANIFEST_UNOWNED=()
+manifest_add_unowned() {
+    MANIFEST_ENTRIES+=("${1}"$'\t'"${2}")
+    MANIFEST_UNOWNED+=("${1}"$'\t'"${2}")
+}
+
+# True (0) iff manifest at $1=base_dir already lists relpath $2 (any lang).
+manifest_lists() {
+    local path
+    path=$(manifest_file_path "$1")
+    [[ -f "$path" ]] || return 1
+    awk -F'\t' -v r="$2" '$1 !~ /^#/ && $2 == r { found = 1 } END { exit !found }' "$path"
+}
+
+# Records a dest as managed when it ended up byte-identical to what the
+# installer ships (after the copy step), or when the previous manifest
+# already owned it and it is still a real (non-symlink) path: a no-force
+# upgrade that skips a changed file, or a stale extra file left by an -f
+# overlay, must not drop it from the manifest. Dry runs record it
+# unconditionally so `-n -p` previews stay accurate.
+# $1=lang $2=relpath $3=0 if identical, else non-zero $4=installed dest.
+manifest_add_checked() {
+    if $DRY_RUN || [[ "$3" -eq 0 ]]; then
+        manifest_add "$1" "$2"
+    elif [[ -e "$4" && ! -L "$4" ]] && manifest_lists "${4%/"$2"}" "$2"; then
+        manifest_add "$1" "$2"
+    else
+        manifest_add_unowned "$1" "$2"
+    fi
+}
+# $1=lang $2=relpath $3=source file/dir $4=installed dest.
+manifest_add_file() {
+    local same=0
+    dest_same_file "$3" "$4" || same=1
+    manifest_add_checked "$1" "$2" "$same" "$4"
+}
+manifest_add_dir() {
+    local same=0
+    dest_same_dir "$3" "$4" || same=1
+    manifest_add_checked "$1" "$2" "$same" "$4"
+}
+
+# Drops manifest entries whose dest no longer exists under $1=base_dir, and
+# the manifest itself when nothing is left. Used by uninstall so a stale
+# entry cannot later claim a file the user creates at the same path.
+manifest_prune_missing() {
+    local base_dir="$1" path lang relpath kept=""
+    path=$(manifest_file_path "$base_dir")
+    [[ -f "$path" ]] || return 0
+    while IFS=$'\t' read -r lang relpath; do
+        [[ -z "$lang" ]] && continue
+        if [[ -e "${base_dir}/${relpath}" || -L "${base_dir}/${relpath}" ]]; then
+            kept="${kept}${lang}"$'\t'"${relpath}"$'\n'
+        fi
+    done < <(grep -v '^#' "$path" || true)
+    if [[ -z "$kept" ]]; then
+        rm -f "$path"
+    else
+        { echo "$MANIFEST_HEADER"; printf '%s' "$kept"; } > "$path"
+    fi
 }
 
 manifest_file_path() {
@@ -85,12 +170,21 @@ manifest_write() {
         done <<< "$old_entries"
     fi
 
+    local entries_nl="" entry
+    if [[ ${#MANIFEST_ENTRIES[@]} -gt 0 ]]; then
+        for entry in "${MANIFEST_ENTRIES[@]}"; do
+            if [[ ${#MANIFEST_UNOWNED[@]} -gt 0 ]] \
+                && printf '%s\n' "${MANIFEST_UNOWNED[@]}" | grep -Fxq -- "$entry"; then
+                continue
+            fi
+            entries_nl="${entries_nl}${entry}"$'\n'
+        done
+    fi
+
     local body
     body=$(
         {
-            if [[ ${#MANIFEST_ENTRIES[@]} -gt 0 ]]; then
-                printf '%s\n' "${MANIFEST_ENTRIES[@]}"
-            fi
+            printf '%s' "$entries_nl"
             printf '%s' "$carried"
         } | grep -v '^$' | sort -u || true
     )
@@ -207,8 +301,10 @@ prune_map_source() {
             printf '%s\t%s\t1\n' "skills/${skill}" "content/skills/${lang}/${skill}"
             return 0
         fi
-        if [[ "$srcpath" =~ ^content/hooks/([^/]+)/project-hooks\.json$ ]]; then
-            lang="${BASH_REMATCH[1]}"
+        # content/hooks/ moved to content/targets/claude/hooks/; git history
+        # holds both, so accept either source path.
+        if [[ "$srcpath" =~ ^content/(targets/claude/)?hooks/([^/]+)/project-hooks\.json$ ]]; then
+            lang="${BASH_REMATCH[2]}"
             lang_in_list "$lang" "$langs_nl" || return 0
             printf '%s\t%s\t0\n' "project-hooks/${lang}.json" "$srcpath"
             return 0
@@ -244,8 +340,9 @@ prune_map_source() {
 
     if [[ "$PRUNE_TARGET" == "codex" ]]; then
         # Custom subagent role files: language-agnostic, like external skills.
-        if [[ "$srcpath" =~ ^content/codex/agents/([^/]+\.toml)$ ]]; then
-            filename="${BASH_REMATCH[1]}"
+        # content/codex/ moved to content/targets/codex/; accept either path.
+        if [[ "$srcpath" =~ ^content/(targets/)?codex/agents/([^/]+\.toml)$ ]]; then
+            filename="${BASH_REMATCH[2]}"
             printf '%s\t%s\t0\n' "agents/${filename}" "$srcpath"
             return 0
         fi
@@ -271,6 +368,39 @@ prune_map_source() {
             lang="${BASH_REMATCH[1]}"; skill="${BASH_REMATCH[2]}"
             lang_in_list "$lang" "$langs_nl" || return 0
             printf '%s\t%s\t1\n' "skills/${skill}" "skills/${lang}/${skill}"
+            return 0
+        fi
+        return 0
+    fi
+
+    if [[ "$PRUNE_TARGET" == "pi" ]]; then
+        # Commands install as prompt templates, shared agents as converted
+        # agent files. worker/scout and the extensions are language-agnostic
+        # and never in the manifest, so history has nothing to map for them.
+        # Converted agents differ from their historical source, so the
+        # fallback lists them as unverified and leaves them untouched.
+        if [[ "$srcpath" =~ ^content/commands/([^/]+)/([^/]+\.md)$ ]]; then
+            lang="${BASH_REMATCH[1]}"; filename="${BASH_REMATCH[2]}"
+            lang_in_list "$lang" "$langs_nl" || return 0
+            printf '%s\t%s\t0\n' "prompts/${filename}" "$srcpath"
+            return 0
+        fi
+        if [[ "$srcpath" =~ ^content/agents/([^/]+)/([^/]+\.md)$ ]]; then
+            lang="${BASH_REMATCH[1]}"; filename="${BASH_REMATCH[2]}"
+            lang_in_list "$lang" "$langs_nl" || return 0
+            printf '%s\t%s\t0\n' "agents/${filename}" "$srcpath"
+            return 0
+        fi
+        if [[ "$srcpath" =~ ^content/rules/([^/]+)/([^/]+\.md)$ ]]; then
+            lang="${BASH_REMATCH[1]}"; filename="${BASH_REMATCH[2]}"
+            lang_in_list "$lang" "$langs_nl" || return 0
+            printf '%s\t%s\t0\n' "instructions/${filename}" "$srcpath"
+            return 0
+        fi
+        if [[ "$srcpath" =~ ^content/skills/([^/]+)/([^/]+)/ ]]; then
+            lang="${BASH_REMATCH[1]}"; skill="${BASH_REMATCH[2]}"
+            lang_in_list "$lang" "$langs_nl" || return 0
+            printf '%s\t%s\t1\n' "skills/${skill}" "content/skills/${lang}/${skill}"
             return 0
         fi
         return 0
@@ -327,7 +457,7 @@ prune_git_history_fallback() {
     echo -e "${CYAN}[prune: git history fallback]${NC}"
 
     local deleted_paths
-    deleted_paths=$(git -C "$REPO_ROOT" log --all --diff-filter=D --name-only --pretty=format: 2>/dev/null \
+    deleted_paths=$(git -C "$REPO_ROOT" log --all -M --diff-filter=D --name-only --pretty=format: 2>/dev/null \
         | grep -v '^$' | sort -u || true)
     if [[ -z "$deleted_paths" ]]; then
         log_info "No historical deletions found."
@@ -358,10 +488,10 @@ prune_git_history_fallback() {
         dedup="${dedup}${dest}"$'\t'"${srcprefix}"$'\t'"${isdir}"$'\n'
     done <<< "$mapped"
 
-    # Drop candidates this run installs (regardless of lang), and candidates
-    # that don't exist locally.
+    # Drop candidates this run installs (regardless of lang, manifested or
+    # not), and candidates that don't exist locally.
     local full_dest_nl candidates=""
-    full_dest_nl=$(manifest_full_dest_set)
+    full_dest_nl=$(installed_full_dest_set)
     while IFS=$'\t' read -r dest srcprefix isdir; do
         [[ -z "$dest" ]] && continue
         if [[ -n "$full_dest_nl" ]] && printf '%s\n' "$full_dest_nl" | grep -Fxq "$dest"; then

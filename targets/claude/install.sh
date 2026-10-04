@@ -134,7 +134,7 @@ merge_hooks() {
     echo "$content" > "$dest"
 }
 
-# jq filter for merging content/plugins/plugins.json into settings.json.
+# jq filter for merging content/targets/claude/plugins.json into settings.json.
 # Input: [settings (or {}), plugins.json]. Only enabledPlugins and
 # extraKnownMarketplaces are taken from the plugins file (never _comments),
 # merged additively so the user's untracked plugins/marketplaces survive;
@@ -144,7 +144,7 @@ JQ_MERGE_PLUGINS='.[1] as $plugins | .[0] | .enabledPlugins = ((.enabledPlugins 
 # Merge tracked plugins into settings.json. Claude Code auto-installs the
 # listed plugins/marketplaces on startup, so this is all a new machine needs.
 merge_plugins() {
-    local src="${CONTENT_ROOT}/plugins/plugins.json"
+    local src="${CONTENT_ROOT}/targets/claude/plugins.json"
     local dest="${CLAUDE_DIR}/settings.json"
 
     [[ -f "$src" ]] || return 0
@@ -153,7 +153,7 @@ merge_plugins() {
     echo -e "${CYAN}[plugins]${NC}"
 
     if $DRY_RUN; then
-        log_dry "content/plugins/plugins.json" "settings.json (enabledPlugins, extraKnownMarketplaces)"
+        log_dry "content/targets/claude/plugins.json" "settings.json (enabledPlugins, extraKnownMarketplaces)"
         return
     fi
 
@@ -182,7 +182,7 @@ merge_plugins() {
         content=$(jq -s "$JQ_MERGE_PLUGINS" <(echo '{}') "$src")
     fi
 
-    log_copy "content/plugins/plugins.json" "settings.json (enabledPlugins, extraKnownMarketplaces)"
+    log_copy "content/targets/claude/plugins.json" "settings.json (enabledPlugins, extraKnownMarketplaces)"
     copied=$((copied + 1))
     echo "$content" > "$dest"
 }
@@ -351,8 +351,11 @@ $DRY_RUN || mkdir -p "$CLAUDE_DIR"
 global_claude="${CONTENT_ROOT}/instructions/global.md"
 if [[ -f "$global_claude" ]]; then
     echo -e "${CYAN}[global]${NC}"
-    copy_file "$global_claude" "${CLAUDE_DIR}/CLAUDE.md" \
-        "content/instructions/global.md" "CLAUDE.md"
+    claude_md_tmp=$(mktemp)
+    "${REPO_ROOT}/scripts/lib/build-agents-md.sh" - claude > "$claude_md_tmp"
+    copy_file "$claude_md_tmp" "${CLAUDE_DIR}/CLAUDE.md" \
+        "content/instructions/global.md (+claude addendum)" "CLAUDE.md"
+    rm -f "$claude_md_tmp"
     echo ""
 fi
 
@@ -471,12 +474,12 @@ fi
 hooks_to_merge=()
 for lang in "${LANGUAGES[@]}"; do
     # hooks.json (used by common/)
-    hooks_file="${CONTENT_ROOT}/hooks/${lang}/hooks.json"
+    hooks_file="${CONTENT_ROOT}/targets/claude/hooks/${lang}/hooks.json"
     if [[ -f "$hooks_file" ]]; then
         hooks_to_merge+=("$hooks_file")
     fi
     # global-hooks.json (used by language-specific dirs)
-    global_hooks_file="${CONTENT_ROOT}/hooks/${lang}/global-hooks.json"
+    global_hooks_file="${CONTENT_ROOT}/targets/claude/hooks/${lang}/global-hooks.json"
     if [[ -f "$global_hooks_file" ]]; then
         hooks_to_merge+=("$global_hooks_file")
     fi
@@ -487,7 +490,7 @@ if [[ ${#hooks_to_merge[@]} -gt 0 ]]; then
     merge_hooks "${hooks_to_merge[@]}"
 fi
 
-# Merge tracked plugins (content/plugins/plugins.json) into settings.json.
+# Merge tracked plugins (content/targets/claude/plugins.json) into settings.json.
 # Runs after the hooks merge so a freshly created settings.json is extended,
 # not overwritten.
 merge_plugins
@@ -529,7 +532,7 @@ verify_hook_paths
 # Copy project hooks templates (hooks/*/project-hooks.json → ~/.claude/project-hooks/{lang}.json)
 has_project_hooks=false
 for lang in "${LANGUAGES[@]}"; do
-    project_hooks_file="${CONTENT_ROOT}/hooks/${lang}/project-hooks.json"
+    project_hooks_file="${CONTENT_ROOT}/targets/claude/hooks/${lang}/project-hooks.json"
     [[ -f "$project_hooks_file" ]] || continue
 
     dest_project_hooks="${CLAUDE_DIR}/project-hooks"
@@ -542,7 +545,7 @@ for lang in "${LANGUAGES[@]}"; do
     fi
 
     copy_file_subst "$project_hooks_file" "${dest_project_hooks}/${lang}.json" \
-        "content/hooks/${lang}/project-hooks.json" "project-hooks/${lang}.json"
+        "content/targets/claude/hooks/${lang}/project-hooks.json" "project-hooks/${lang}.json"
     manifest_add "$lang" "project-hooks/${lang}.json"
 done
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * Tests for Codex custom subagent role files: targets/codex/install.sh must
- * copy content/codex/agents/*.toml into $CODEX_DIR/agents/, uninstall.sh must
+ * copy content/targets/codex/agents/*.toml into $CODEX_DIR/agents/, uninstall.sh must
  * remove only the tracked role files, and (when uv is available) config.toml
- * must gain the [agents] defaults from content/codex/config.toml.
+ * must gain the [agents] defaults from content/targets/codex/config.toml.
  *
  * Fixtures are self-contained copies of scripts/ + targets/ plus a minimal
  * fabricated content/ tree, mirroring codex-external-skills.test.js.
@@ -59,11 +59,11 @@ function writeFixtureContent(
   w('content/rules/common/coding-style.md', '# Coding Style\n');
   w('content/mcp/servers.json', JSON.stringify(servers, null, 2) + '\n');
   if (withCodexAgents) {
-    w('content/codex/agents/worker.toml', WORKER_TOML);
-    w('content/codex/agents/explorer.toml', EXPLORER_TOML);
+    w('content/targets/codex/agents/worker.toml', WORKER_TOML);
+    w('content/targets/codex/agents/explorer.toml', EXPLORER_TOML);
   }
   if (withConfigFragment) {
-    w('content/codex/config.toml', CONFIG_FRAGMENT);
+    w('content/targets/codex/config.toml', CONFIG_FRAGMENT);
   }
 }
 
@@ -140,7 +140,7 @@ test('existing role file is skipped without -f and refreshed with -f', () => {
   assert.strictEqual(
     fs.readFileSync(workerDest, 'utf8'),
     WORKER_TOML,
-    '-f must refresh the role file from content/codex/agents/'
+    '-f must refresh the role file from content/targets/codex/agents/'
   );
 });
 
@@ -176,11 +176,11 @@ test('uninstall removes tracked role files only', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. Install without content/codex/ present still succeeds
+// 5. Install without content/targets/codex/ present still succeeds
 // ---------------------------------------------------------------------------
-test('install without content/codex/ present still succeeds', () => {
+test('install without content/targets/codex/ present still succeeds', () => {
   const repo = buildRepo({ withCodexAgents: false, withConfigFragment: false });
-  fs.rmSync(path.join(repo, 'content', 'codex'), { recursive: true, force: true });
+  fs.rmSync(path.join(repo, 'content', 'targets', 'codex'), { recursive: true, force: true });
   const codexHome = mkCodexHome();
   const res = runScript(repo, 'install.sh', ['common'], codexHome);
   assert.strictEqual(res.status, 0, res.stderr + res.stdout);
@@ -237,6 +237,43 @@ if (!hasUv) {
     assert.ok(out.includes('[agents]'));
   });
 }
+
+// ---------------------------------------------------------------------------
+// Prune git-history fallback must stay rename-aware and skip this run's roles
+// ---------------------------------------------------------------------------
+test('-p fallback with diff.renames=false never lists the installed role files', () => {
+  const repo = buildRepo();
+  const gitEnv = { ...process.env, GIT_CONFIG_SYSTEM: '/dev/null', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const g = (args) => {
+    const r = spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
+      cwd: repo, encoding: 'utf8', env: gitEnv
+    });
+    assert.strictEqual(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+  };
+  // History: roles lived in content/codex/agents, then moved (a rename).
+  fs.mkdirSync(path.join(repo, 'content', 'codex'), { recursive: true });
+  fs.renameSync(path.join(repo, 'content', 'targets', 'codex', 'agents'), path.join(repo, 'content', 'codex', 'agents'));
+  g(['init', '-q', '-b', 'main']);
+  g(['add', 'scripts', 'targets', 'content']);
+  g(['commit', '-q', '-m', 'old layout']);
+  fs.mkdirSync(path.join(repo, 'content', 'targets', 'codex'), { recursive: true });
+  g(['mv', 'content/codex/agents', 'content/targets/codex/agents']);
+  g(['commit', '-q', '-m', 'move roles']);
+
+  const cfg = path.join(mkCodexHome(), 'gitconfig');
+  fs.writeFileSync(cfg, '[diff]\n\trenames = false\n');
+  const codexHome = mkCodexHome();
+  const env = { ...process.env, CODEX_HOME: codexHome, GIT_CONFIG_GLOBAL: cfg, GIT_CONFIG_SYSTEM: '/dev/null' };
+  const res = spawnSync('bash', [path.join(repo, 'targets', 'codex', 'install.sh'), '-p', 'common'], {
+    env, encoding: 'utf8', input: 'n\n'
+  });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  const prune = res.stdout.slice(res.stdout.indexOf('[prune: git history fallback]'));
+  assert.ok(prune.includes('prune: git history fallback'), res.stdout);
+  assert.ok(!prune.includes('agents/explorer.toml'), prune);
+  assert.ok(!prune.includes('agents/worker.toml'), prune);
+  assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'worker.toml')));
+});
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

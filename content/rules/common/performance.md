@@ -55,8 +55,10 @@ pricing page before quoting it.
 
 ### Tier Mapping (Claude ↔ Codex)
 
-Use the same role-based delegation in both tools. The parent runs on
-the top tier; subagents run one or two tiers down.
+Delegation is defined by role; the models below are how the Claude Code
+and Codex targets pin each role. Harnesses where the user picks the
+model in their own configuration (pi) ship agents without a model, so
+subagents inherit the parent's model and this table does not apply.
 
 | Role | Claude Code | Codex |
 |------|-------------|-------|

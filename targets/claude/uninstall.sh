@@ -211,8 +211,8 @@ fi
 # Remove global hooks (settings.json)
 has_hooks=false
 for lang in "${LANGUAGES[@]}"; do
-    if [[ -f "${CONTENT_ROOT}/hooks/${lang}/hooks.json" ]] || \
-       [[ -f "${CONTENT_ROOT}/hooks/${lang}/global-hooks.json" ]]; then
+    if [[ -f "${CONTENT_ROOT}/targets/claude/hooks/${lang}/hooks.json" ]] || \
+       [[ -f "${CONTENT_ROOT}/targets/claude/hooks/${lang}/global-hooks.json" ]]; then
         has_hooks=true
         break
     fi
@@ -241,12 +241,12 @@ if $has_hooks; then
 fi
 
 # Remove tracked plugins from settings.json. Only the enabledPlugins /
-# extraKnownMarketplaces entries listed in content/plugins/plugins.json are
+# extraKnownMarketplaces entries listed in content/targets/claude/plugins.json are
 # removed; anything the user added on top survives. Keys left empty by the
 # removal are dropped entirely so settings.json is not polluted with {}.
 JQ_REMOVE_PLUGINS='.[1] as $plugins | .[0] | .enabledPlugins = ((.enabledPlugins // {}) | with_entries(select($plugins.enabledPlugins[.key] == null))) | .extraKnownMarketplaces = ((.extraKnownMarketplaces // {}) | with_entries(select($plugins.extraKnownMarketplaces[.key] == null))) | if .enabledPlugins == {} then del(.enabledPlugins) else . end | if .extraKnownMarketplaces == {} then del(.extraKnownMarketplaces) else . end'
 
-plugins_src="${CONTENT_ROOT}/plugins/plugins.json"
+plugins_src="${CONTENT_ROOT}/targets/claude/plugins.json"
 if [[ -f "$plugins_src" ]]; then
     echo -e "${CYAN}[plugins]${NC}"
     settings_file="${CLAUDE_DIR}/settings.json"
@@ -286,7 +286,7 @@ fi
 # Remove project hook templates (project-hooks/{lang}.json)
 has_project_hooks=false
 for lang in "${LANGUAGES[@]}"; do
-    if [[ -f "${CONTENT_ROOT}/hooks/${lang}/project-hooks.json" ]]; then
+    if [[ -f "${CONTENT_ROOT}/targets/claude/hooks/${lang}/project-hooks.json" ]]; then
         if ! $has_project_hooks; then
             echo -e "${CYAN}[project hooks]${NC}"
             has_project_hooks=true

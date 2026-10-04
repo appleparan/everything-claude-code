@@ -1,17 +1,29 @@
 #!/usr/bin/env bash
-# Generate Codex AGENTS.md on stdout: the global instructions followed by an
-# index of rules files installed under <dest-label>.
-# Usage: build-agents-md.sh <dest-label> <lang>...
+# Generate an AGENTS.md on stdout: the global instructions, the target's own
+# addendum (content/targets/<target>/instructions.md, when present), then an
+# index of rules files installed under <dest-label>. With no languages the
+# index is omitted (Claude Code loads ~/.claude/rules/ itself, so its
+# CLAUDE.md needs only the global body and the addendum).
+# Usage: build-agents-md.sh <dest-label> <target> [<lang>...]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONTENT_ROOT="${REPO_ROOT}/content"
 
-DEST_LABEL="${1:?usage: build-agents-md.sh <dest-label> <lang>...}"
-shift
+DEST_LABEL="${1:?usage: build-agents-md.sh <dest-label> <target> [<lang>...]}"
+TARGET="${2:?usage: build-agents-md.sh <dest-label> <target> [<lang>...]}"
+shift 2
 
 cat "${CONTENT_ROOT}/instructions/global.md"
+
+addendum="${CONTENT_ROOT}/targets/${TARGET}/instructions.md"
+if [[ -f "$addendum" ]]; then
+    echo ""
+    cat "$addendum"
+fi
+
+[[ $# -gt 0 ]] || exit 0
 
 echo ""
 echo "## Rules Index"

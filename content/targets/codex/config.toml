@@ -1,7 +1,7 @@
 # Merged key-by-key into ~/.codex/config.toml by targets/codex/install.sh
 # (targets/codex/merge-config.py). Existing user keys win unless -f.
 # Fallback model for spawned subagents that don't pin one (the worker and
-# explorer roles in content/codex/agents/ pin their own).
+# explorer roles in content/targets/codex/agents/ pin their own).
 
 [agents]
 default_subagent_model = "gpt-5.6-terra"

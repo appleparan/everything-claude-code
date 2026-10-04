@@ -7,12 +7,13 @@
 ![Markdown](https://img.shields.io/badge/-Markdown-000000?logo=markdown&logoColor=white)
 
 A curated collection of Claude Code configurations — agents, skills, commands,
-rules, and hooks — installable per language into **Claude Code** (`~/.claude`)
-and **Codex CLI** (`~/.codex`) from a single shared content tree.
+rules, and hooks — installable per language into **Claude Code** (`~/.claude`),
+**Codex CLI** (`~/.codex`), and **pi** (`~/.pi/agent`) from a single shared
+content tree.
 
 This is a fork of
 [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code),
-restructured around a script-based, dual-target install flow:
+restructured around a script-based, multi-target install flow:
 
 - **Single source of truth**: all shared content lives in a target-neutral
   `content/` tree; per-tool install logic lives in `targets/<target>/`.
@@ -20,6 +21,8 @@ restructured around a script-based, dual-target install flow:
   the languages you ask for, shows dry runs, and merges hooks safely.
 - **Codex CLI support**: the same content installs into `~/.codex`
   (`AGENTS.md`, instructions, skills, MCP servers).
+- **pi support**: the same content installs into `~/.pi/agent` (`AGENTS.md`,
+  instructions, skills, prompts, subagents, a safety extension).
 
 ---
 
@@ -42,13 +45,14 @@ restructured around a script-based, dual-target install flow:
 git clone https://github.com/appleparan/everything-claude-code.git
 cd everything-claude-code
 
-# Install common + python configs for both Claude Code and Codex
-# (Codex is skipped automatically when not detected)
+# Install common + python configs for every detected target
+# (Codex and pi are skipped automatically when not detected)
 ./scripts/install.sh python common
 
-# Claude Code only / Codex only
+# One target only
 ./scripts/install.sh --target claude python common
 ./scripts/install.sh --target codex python common
+./scripts/install.sh --target pi python common
 
 # Preview what would be installed, without writing anything
 ./scripts/install.sh -n --target all python common
@@ -57,9 +61,10 @@ cd everything-claude-code
 ./scripts/install.sh -l
 ```
 
-`scripts/install.sh` is a thin `--target claude|codex|all` dispatcher (default
-`all`) over `targets/claude/install.sh` and `targets/codex/install.sh`, which
-both read from the single `content/` source tree.
+`scripts/install.sh` is a thin `--target <name>|all` dispatcher (default `all`)
+over the targets discovered under `targets/*/target.sh` (today `claude`,
+`codex`, and `pi`), which all read from the single `content/` source tree. `all` runs
+`claude` first, then every other target that reports itself available.
 
 Available languages: `common`, `infra`, `node`, `python`, `rust`, `typescript`.
 `common` holds language-agnostic content; you almost always want it plus the
@@ -69,18 +74,24 @@ Options (shared by install and uninstall):
 
 | Flag | Effect |
 |---|---|
-| `--target claude\|codex\|all` | Which tool to install into (default `all`) |
+| `--target claude\|codex\|pi\|all` | Which tool to install into (default `all`) |
 | `-n` | Dry run — show what would be copied without copying |
 | `-f` | Force-overwrite existing files (default is skip) |
 | `-p` | Prune orphaned files left by previous installs (see below) |
-| `-m` | Merge MCP servers from `content/mcp/servers.json` (off by default; install only) |
+| `-m` | Merge MCP servers from `content/mcp/servers.json` (off by default; install only; pi ignores it) |
 | `-l` | List available languages |
 | `-h` | Show help |
+
+Install never writes through a symlink, even with `-f`. If a destination
+such as `~/.claude/CLAUDE.md` is a link into your dotfiles, install skips
+it with a warning. Update the link target by hand, or remove the link and
+run install again.
 
 ### Pruning orphaned files (`-p`)
 
 Every non-dry-run install writes `.ecc-manifest` next to the installed files
-(`~/.claude/.ecc-manifest`, `~/.codex/.ecc-manifest`), recording every
+(`~/.claude/.ecc-manifest`, `~/.codex/.ecc-manifest`,
+`~/.pi/agent/.ecc-manifest`), recording every
 destination that install manages for the languages you selected. Content
 that's shared/merged (`CLAUDE.md`, `settings.json`, `AGENTS.md`,
 `config.toml`) is never tracked, so it's never a prune candidate.
@@ -114,9 +125,9 @@ that's shared/merged (`CLAUDE.md`, `settings.json`, `AGENTS.md`,
 | `content/skills/<lang>/<name>/` | `~/.claude/skills/<name>/` | Skill directories with `SKILL.md` |
 | `content/commands/<lang>/*.md` | `~/.claude/commands/` | Slash commands |
 | `content/rules/<lang>/*.md` | `~/.claude/rules/` | Always-follow guidelines |
-| `content/hooks/<lang>/hooks.json`, `global-hooks.json` | merged into `~/.claude/settings.json` | Global hooks |
-| `content/hooks/<lang>/project-hooks.json` | `~/.claude/project-hooks/<lang>.json` | Templates for `init-project.sh` |
-| `content/plugins/plugins.json` | merged into `~/.claude/settings.json` | Tracked plugins + marketplaces |
+| `content/targets/claude/hooks/<lang>/hooks.json`, `global-hooks.json` | merged into `~/.claude/settings.json` | Global hooks |
+| `content/targets/claude/hooks/<lang>/project-hooks.json` | `~/.claude/project-hooks/<lang>.json` | Templates for `init-project.sh` |
+| `content/targets/claude/plugins.json` | merged into `~/.claude/settings.json` | Tracked plugins + marketplaces |
 | `content/mcp/servers.json` | merged into `~/.claude.json` (`mcpServers`) | Opt-in via `-m` (off by default) |
 | `scripts/<lang>/hooks/`, `scripts/<lang>/lib/` | `~/.claude/scripts/<lang>/...` | Hook runtime scripts |
 
@@ -128,7 +139,7 @@ Hook handling details worth knowing:
   (permissions, model, enabled plugins, ...) are preserved.
 - After install, a smoke test warns about any hook that references a script
   path that doesn't exist.
-- `content/plugins/plugins.json` tracks Claude Code plugins: its
+- `content/targets/claude/plugins.json` tracks Claude Code plugins: its
   `enabledPlugins` and `extraKnownMarketplaces` keys are merged additively
   into `settings.json` (your untracked plugins survive), and Claude Code
   auto-installs the listed plugins on next startup. Refresh the tracked list
@@ -175,12 +186,12 @@ detected) installs into `$CODEX_HOME` or `~/.codex`:
 | `content/instructions/global.md` + rules index | `~/.codex/AGENTS.md` (generated) |
 | `content/rules/**` | `~/.codex/instructions/*.md` (flat, one file per rule) |
 | `content/skills/**` | `~/.codex/skills/<name>/` (invoked via `$skill-name`, e.g. `$git-commit-msg`) |
-| `content/plugins/codex-skills.json` | External skills shallow-cloned from their git repos into `~/.codex/skills/<name>/`. Each entry names a repo and the in-repo path of a directory containing `SKILL.md`. Language-agnostic (installed on every install, removed by uninstalling any language); entries are skipped with a warning when `git`/`jq` are missing, the clone fails, or the path has no `SKILL.md`. Existing skill dirs are only refreshed with `-f`. |
-| `content/codex/agents/*.toml` | `~/.codex/agents/<role>.toml` — custom subagent roles (`worker` on gpt-5.6-terra, `explorer` on gpt-5.6-luna) that override Codex's built-in roles so subagents never inherit the parent model. Language-agnostic (installed on every install, removed by uninstalling any language); existing files are only refreshed with `-f`. |
-| `content/codex/config.toml` | `[agents]` defaults (`default_subagent_model`) merged key-by-key into `~/.codex/config.toml`, with a timestamped backup; existing user keys win unless `-f`. Requires `uv`; if it's missing, the step is skipped with a warning. |
+| `content/external-skills.json` | External skills shallow-cloned from their git repos into `~/.codex/skills/<name>/`. Each entry names a repo and the in-repo path of a directory containing `SKILL.md`. Language-agnostic (installed on every install, removed by uninstalling any language); entries are skipped with a warning when `git`/`jq` are missing, the clone fails, or the path has no `SKILL.md`. Existing skill dirs are only refreshed with `-f`. |
+| `content/targets/codex/agents/*.toml` | `~/.codex/agents/<role>.toml` — custom subagent roles (`worker` on gpt-5.6-terra, `explorer` on gpt-5.6-luna) that override Codex's built-in roles so subagents never inherit the parent model. Language-agnostic (installed on every install, removed by uninstalling any language); existing files are only refreshed with `-f`. |
+| `content/targets/codex/config.toml` | `[agents]` defaults (`default_subagent_model`) merged key-by-key into `~/.codex/config.toml`, with a timestamped backup; existing user keys win unless `-f`. Requires `uv`; if it's missing, the step is skipped with a warning. |
 | `content/mcp/servers.json` | Opt-in via `-m` (off by default): `[mcp_servers.*]` merged into `~/.codex/config.toml`, with a timestamped backup of the existing file. Only servers tagged with a matching `languages` entry (plus untagged/common servers) are merged for the languages being installed. Requires `uv`; if it's missing, the MCP step is skipped with a warning and the entries can be added manually. |
 
-MCP server installation is opt-in on both targets — pass `-m` to merge
+MCP server installation is opt-in on Claude Code and Codex — pass `-m` to merge
 `content/mcp/servers.json` in; without it, no MCP servers are installed.
 Each entry may carry a `languages` tag, and only servers matching the
 languages you install (plus untagged/common servers) are merged. For
@@ -194,8 +205,8 @@ language that needs it.
 Codex has no slash-command concept and configures subagents through TOML
 role files rather than Markdown agents, so `content/agents/` and
 `content/commands/` are not installed there; Codex subagent roles come from
-`content/codex/agents/` instead (see the table above and the `performance`
-rule for the Claude ↔ Codex tier mapping). `content/hooks/` targets Claude
+`content/targets/codex/agents/` instead (see the table above and the `performance`
+rule for the Claude ↔ Codex tier mapping). `content/targets/claude/hooks/` targets Claude
 Code's tool-event hooks, which have no Codex lifecycle equivalent, so those
 are not installed either.
 
@@ -207,12 +218,54 @@ is an error; `--target all` prints an INFO message and skips Codex.
 (e.g. `$git-commit-msg`) to confirm skill discovery, and confirm `AGENTS.md`
 is loaded (Codex reads it automatically at session start).
 
+### pi support
+
+`./scripts/install.sh --target pi` installs into `$PI_CODING_AGENT_DIR` or
+`~/.pi/agent`:
+
+| content | destination |
+|---|---|
+| `content/instructions/global.md` + pi addendum + rules index | `AGENTS.md` (generated) |
+| `content/rules/**` | `instructions/*.md` |
+| `content/skills/**`, `content/external-skills.json` | `skills/<name>/` (invoked via `/skill:name`) |
+| `content/commands/**` | `prompts/*.md` (prompt templates) |
+| `content/agents/**` | `agents/*.md`, converted to pi tool names, plus `worker` and `scout` from `content/targets/pi/agents/` |
+| `content/targets/pi/extensions/ecc-safety/` | `extensions/ecc-safety/` |
+| `content/targets/pi/upstream-extensions.json` | `extensions/subagent/`, fetched with `git` |
+
+Install and uninstall:
+
+```bash
+./scripts/install.sh --target pi common python   # -n, -f, -p work as above
+./scripts/uninstall.sh --target pi common python
+ECC_SKIP_UPSTREAM=1 ./scripts/install.sh --target pi common   # skip the fetch
+```
+
+Agent models: pi agents ship without `model:` lines, so subagents use the
+model you select in pi.
+
+Three limits to know:
+
+- pi has no permission prompts or sandbox. The `ecc-safety` extension blocks
+  or asks before destructive commands (`rm -rf`, `sudo`, `git push --force`,
+  and similar) and unneeded `.md`/`.txt` writes. It is a pattern list, not a
+  security boundary. Without a UI (subagents, `pi -p`) it blocks those
+  commands; set `ECC_SAFETY_HEADLESS=allow` to let them run.
+- The subagent extension comes from a pinned upstream commit. If it breaks
+  with your pi version, bump `ref` in
+  `content/targets/pi/upstream-extensions.json` and re-run with `-f`.
+- Per-language hooks and MCP config are not ported to pi yet.
+
+pi is detected via `$PI_CODING_AGENT_DIR`, an existing `~/.pi` directory, or a
+`pi` binary on `PATH`.
+
 ### Uninstall
 
 ```bash
-./scripts/uninstall.sh                    # both targets (codex skipped if absent)
+./scripts/uninstall.sh                    # all targets (codex and pi skipped if absent)
 ./scripts/uninstall.sh --target claude
 ./scripts/uninstall.sh --target codex
+./scripts/uninstall.sh --target pi common python
 ```
 
 `uninstall.sh --target codex` removes the installed files but never touches
@@ -233,39 +286,59 @@ everything-claude-code/
 |
 |-- content/          # Single source of truth (target-neutral, no install logic)
 |   |-- instructions/
-|   |   |-- global.md        # Global instructions (-> ~/.claude/CLAUDE.md, folded into ~/.codex/AGENTS.md)
-|   |-- agents/               # Specialized subagents (Claude Code only)
+|   |   |-- global.md        # Harness-neutral instructions (-> CLAUDE.md / AGENTS.md, plus each target's addendum)
+|   |-- agents/               # Specialized subagents (Claude Code, pi)
 |   |   |-- common/, infra/, node/, python/, rust/, typescript/
-|   |-- skills/                # Workflow definitions (Claude Code + Codex, via $skill-name)
+|   |-- skills/                # Workflow definitions (Claude Code, Codex, pi)
 |   |   |-- common/, node/, python/
-|   |-- commands/              # Slash commands (Claude Code only)
+|   |-- commands/              # Slash commands (Claude Code; pi prompt templates)
 |   |   |-- common/, infra/, node/, python/, rust/
-|   |-- rules/                 # Always-follow guidelines (Claude Code + Codex)
+|   |-- rules/                 # Always-follow guidelines (all targets)
 |   |   |-- common/, infra/, node/, python/, rust/, typescript/
-|   |-- hooks/                 # Trigger-based automations (Claude Code only)
-|   |   |-- common/, infra/, node/, python/, rust/
 |   |-- mcp/
 |   |   |-- servers.json     # MCP server catalog, tagged per language (manual copy for Claude Code, filtered merge into Codex config.toml)
-|   |-- codex/                 # Codex-native config (Codex only)
-|       |-- agents/            # Subagent role files -> ~/.codex/agents/ (worker=terra, explorer=luna)
-|       |-- config.toml        # [agents] defaults merged into ~/.codex/config.toml
+|   |-- external-skills.json   # External skills cloned at install time (optional per-entry "targets")
+|   |-- targets/               # Content that only one target consumes
+|       |-- claude/
+|       |   |-- instructions.md  # Addendum appended to CLAUDE.md
+|       |   |-- plugins.json   # Tracked plugins + marketplaces merged into settings.json
+|       |   |-- hooks/         # Trigger-based automations (common/, infra/, node/, python/, rust/)
+|       |-- codex/
+|       |   |-- instructions.md  # Addendum appended to AGENTS.md
+|       |   |-- agents/        # Subagent role files -> ~/.codex/agents/ (worker=terra, explorer=luna)
+|       |   |-- config.toml    # [agents] defaults merged into ~/.codex/config.toml
+|       |-- pi/
+|           |-- instructions.md  # Addendum appended to AGENTS.md
+|           |-- agents/        # worker and scout subagents
+|           |-- extensions/ecc-safety/  # Destructive-command and doc-file guard
+|           |-- upstream-extensions.json  # Pinned upstream subagent extension
 |
 |-- targets/           # Per-target adapters - mapping/transform only, no content
 |   |-- claude/
+|   |   |-- target.sh         # Registry entry: target_is_available(), target_description()
 |   |   |-- install.sh        # content/* -> ~/.claude/*
 |   |   |-- uninstall.sh
 |   |-- codex/
+|       |-- target.sh
 |       |-- install.sh        # content/* -> ~/.codex/* (see Codex support above)
 |       |-- uninstall.sh
-|       |-- build-agents-md.sh  # Generates AGENTS.md (global.md + rules index)
 |       |-- merge-mcp.py        # servers.json -> config.toml [mcp_servers.*] merge
-|       |-- merge-config.py     # content/codex/config.toml -> config.toml [agents] merge
+|       |-- merge-config.py     # content/targets/codex/config.toml -> config.toml [agents] merge
+|   |-- pi/
+|       |-- target.sh
+|       |-- install.sh        # content/* -> ~/.pi/agent/* (see pi support above)
+|       |-- uninstall.sh
 |
 |-- scripts/          # Thin dispatchers + hook runtime scripts
-|   |-- install.sh           # --target claude|codex|all (default all)
-|   |-- uninstall.sh         # --target claude|codex|all (default all)
+|   |-- install.sh           # --target <name>|all (default all)
+|   |-- uninstall.sh         # --target <name>|all (default all)
 |   |-- init-project.sh      # Initialize project hooks
-|   |-- lib/common.sh        # Shared copy/log/dry-run helpers for targets/
+|   |-- lib/common.sh        # Shared copy/log/dry-run helpers + target registry
+|   |-- lib/build-agents-md.sh   # AGENTS.md generator (global.md + target addendum + rules index)
+|   |-- lib/external-skills.sh   # Installs content/external-skills.json for a target
+|   |-- lib/prune.sh             # Manifest and orphan pruning
+|   |-- lib/pi-agents.sh         # Converts shared agents to pi tool names
+|   |-- lib/upstream-extensions.sh  # Fetches pinned upstream pi extensions
 |   |-- node/                # Node.js hook runtime scripts
 |   |   |-- lib/, hooks/, ci/
 |   |-- python/              # Python hook runtime scripts (as they land)
@@ -278,6 +351,25 @@ everything-claude-code/
 |-- tests/            # Test suite (node tests/run-all.js)
 |-- examples/         # Example CLAUDE.md configurations
 ```
+
+---
+
+## Adding a target
+
+A target is a directory under `targets/`; the dispatchers discover it with no
+other registration.
+
+1. Create `targets/<name>/target.sh`, `install.sh`, and `uninstall.sh`.
+   `target.sh` defines `target_is_available` (is the tool present?) and
+   `target_description` (one line for `--help`).
+2. Optionally add `content/targets/<name>/` for content only this target
+   consumes. An `instructions.md` there is appended to the generated
+   instructions file.
+3. Reuse the helpers in `scripts/lib/`: `build-agents-md.sh` (instructions
+   file), `external-skills.sh` (external skills), `prune.sh` (manifest and
+   `-p`), and `common.sh` (copy, log, dry-run).
+4. Add tests under `tests/scripts/`. Use `targets/pi/` and
+   `tests/scripts/pi-target.test.js` as a template.
 
 ---
 
@@ -338,7 +430,7 @@ The upstream repo distributes this content as a Claude Code plugin
 (`/plugin marketplace add affaan-m/everything-claude-code`). This fork keeps
 the plugin manifests (`.claude-plugin/`) intact, but the script-based install
 above is the supported path here — it is explicit about what gets copied,
-supports Codex, and installs `rules`, which the plugin system cannot
+supports Codex and pi, and installs `rules`, which the plugin system cannot
 distribute ([upstream limitation](https://code.claude.com/docs/en/plugins-reference)).
 
 > **For contributors:** do NOT add a `"hooks"` field to
@@ -360,7 +452,7 @@ npx markdownlint "content/**/*.md"
 ```
 
 Tests cover the hook runtime libraries, dispatcher `--target` handling, and
-the Codex adapter scripts.
+the Codex and pi adapter scripts.
 
 Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -399,7 +491,7 @@ These configs are a starting point, not a prescription:
 
 Original collection by [Affaan Mustafa](https://x.com/affaanmustafa)
 ([affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code)).
-This fork adds the dual-target (`content/` + `targets/`) restructure and the
+This fork adds the multi-target (`content/` + `targets/`) restructure and the
 script-based install flow.
 
 ## License

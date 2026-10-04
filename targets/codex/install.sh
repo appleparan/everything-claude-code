@@ -4,8 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "${REPO_ROOT}/scripts/lib/common.sh"
+# shellcheck source=target.sh
+source "${SCRIPT_DIR}/target.sh"
 # shellcheck source=../../scripts/lib/prune.sh
 source "${REPO_ROOT}/scripts/lib/prune.sh"
+# shellcheck source=../../scripts/lib/external-skills.sh
+source "${REPO_ROOT}/scripts/lib/external-skills.sh"
 PRUNE_TARGET="codex"
 
 usage() {
@@ -16,10 +20,10 @@ Install shared configuration into Codex (\$CODEX_HOME or ~/.codex):
   AGENTS.md          Global instructions + rules index (generated)
   instructions/      Rules files, read on demand via the index
   skills/            Skill folders (invoked via \$skill-name), plus external
-                     skills tracked in content/plugins/codex-skills.json
-  agents/            Custom subagent roles from content/codex/agents/
+                     skills tracked in content/external-skills.json
+  agents/            Custom subagent roles from content/targets/codex/agents/
                      (e.g. worker/explorer model overrides)
-  config.toml        [agents] defaults from content/codex/config.toml always
+  config.toml        [agents] defaults from content/targets/codex/config.toml always
                      merged (when uv is available); [mcp_servers.*] entries
                      merged only with -m (backup created before either write)
 
@@ -67,7 +71,7 @@ for lang in "${LANGUAGES[@]}"; do
     fi
 done
 
-if ! codex_is_available; then
+if ! target_is_available; then
     echo -e "${RED}Error: Codex not detected (set CODEX_HOME, create ~/.codex, or install codex)${NC}"
     exit 1
 fi
@@ -106,7 +110,7 @@ echo -e "${CYAN}[global]${NC}"
 agents_tmp=$(mktemp)
 ext_tmp=""  # per-entry clone dir of install_external_skills, covered by the trap
 trap 'rm -f "$agents_tmp"; if [[ -n "$ext_tmp" ]]; then rm -rf "${ext_tmp:?}"; fi' EXIT
-"${SCRIPT_DIR}/build-agents-md.sh" "${DEST_LABEL}/instructions" "${LANGUAGES[@]}" > "$agents_tmp"
+"${REPO_ROOT}/scripts/lib/build-agents-md.sh" "${DEST_LABEL}/instructions" codex "${LANGUAGES[@]}" > "$agents_tmp"
 copy_file "$agents_tmp" "${CODEX_DIR}/AGENTS.md" \
     "content/instructions/global.md (+rules index)" "AGENTS.md"
 echo ""
@@ -127,106 +131,31 @@ for lang in "${LANGUAGES[@]}"; do
 done
 echo ""
 
-# 3.5 External skills, cloned from the repos tracked in codex-skills.json.
+# 3.5 External skills, cloned from the repos tracked in external-skills.json.
 # Language-agnostic like plugins.json: merged on every install, and kept out
 # of the per-language prune manifest. Failures (offline, bad path) warn and
 # skip the entry so the rest of the install still succeeds.
-install_external_skills() {
-    local src="${CONTENT_ROOT}/plugins/codex-skills.json"
-    [[ -f "$src" ]] || return 0
-
-    echo -e "${CYAN}[external skills]${NC}"
-    if ! command -v jq &>/dev/null; then
-        log_warn "jq not found; skipping external skills"
-        jq_install_hint
-        return 0
-    fi
-    if ! command -v git &>/dev/null; then
-        log_warn "git not found; skipping external skills"
-        return 0
-    fi
-
-    local name repo skill_path dest
-    while IFS=$'\t' read -r name repo skill_path; do
-        [[ -n "$name" ]] || continue
-
-        # The JSON is repo-tracked, but a typo'd name/path must never write or
-        # delete outside $CODEX_DIR/skills/<name>/ (uninstall.sh has the twin
-        # name guard).
-        case "$name" in
-            .|..|*/*|*'\'*)
-                log_warn "skills: invalid name '${name}'; skipped"
-                continue ;;
-        esac
-        if [[ -z "$repo" || -z "$skill_path" ]]; then
-            log_warn "skills/${name}: missing repo or path; skipped"
-            continue
-        fi
-        case "/${skill_path}/" in
-            //*|*/../*)
-                log_warn "skills/${name}: invalid path '${skill_path}'; skipped"
-                continue ;;
-        esac
-
-        dest="${CODEX_DIR}/skills/${name}"
-
-        if $DRY_RUN; then
-            log_dry "${repo} (${skill_path})" "skills/${name}/"
-            copied=$((copied + 1))
-            continue
-        fi
-        if [[ -d "$dest" ]] && ! $FORCE; then
-            log_skip "skills/${name}/"
-            skipped=$((skipped + 1))
-            continue
-        fi
-
-        ext_tmp=$(mktemp -d "${TMPDIR:-/tmp}/ecc-ext-skill.XXXXXX")
-        if ! GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 "$repo" "${ext_tmp}/repo"; then
-            log_warn "skills/${name}: clone failed (${repo}); skipped"
-            rm -rf "${ext_tmp:?}"; ext_tmp=""
-            continue
-        fi
-        if [[ ! -f "${ext_tmp}/repo/${skill_path}/SKILL.md" ]]; then
-            log_warn "skills/${name}: no SKILL.md at '${skill_path}' in ${repo}; skipped"
-            rm -rf "${ext_tmp:?}"; ext_tmp=""
-            continue
-        fi
-        rm -rf "${ext_tmp:?}/repo/.git"
-        # Overlay copy (same semantics as copy_dir): files removed upstream
-        # survive a -f refresh. Guarded so one broken entry cannot abort the
-        # rest of the install under set -e.
-        if ! { mkdir -p "$dest" && cp -r "${ext_tmp}/repo/${skill_path}"/. "$dest"/; }; then
-            log_warn "skills/${name}: copy failed; skipped"
-            rm -rf "${ext_tmp:?}"; ext_tmp=""
-            continue
-        fi
-        log_copy "${repo} (${skill_path})" "skills/${name}/"
-        copied=$((copied + 1))
-        rm -rf "${ext_tmp:?}"; ext_tmp=""
-    done < <(jq -r '(.skills // [])[] | [.name, .repo, .path // ""] | @tsv' "$src")
-    echo ""
-}
-install_external_skills
+install_external_skills "${CODEX_DIR}/skills" "skills" codex
 
 # 3.6 Custom subagent roles → agents/. Language-agnostic like external
 # skills: installed on every install and kept out of the per-language
 # manifest, since they are not tied to any one language's content.
 echo -e "${CYAN}[agents]${NC}"
-agents_src_dir="${CONTENT_ROOT}/codex/agents"
+agents_src_dir="${CONTENT_ROOT}/targets/codex/agents"
 if [[ -d "$agents_src_dir" ]]; then
     for f in "$agents_src_dir"/*.toml; do
         [[ -f "$f" ]] || continue
         name=$(basename "$f")
         copy_file "$f" "${CODEX_DIR}/agents/${name}" \
-            "content/codex/agents/${name}" "agents/${name}"
+            "content/targets/codex/agents/${name}" "agents/${name}"
+        installed_unmanifested_add "agents/${name}"
     done
 fi
 echo ""
 
 # 4. [agents] defaults → config.toml. Always merged when uv is available;
 # this is independent of -m (MERGE_MCP only gates the [mcp] step below).
-config_fragment="${CONTENT_ROOT}/codex/config.toml"
+config_fragment="${CONTENT_ROOT}/targets/codex/config.toml"
 if [[ -f "$config_fragment" ]]; then
     echo -e "${CYAN}[config]${NC}"
     if command -v uv &>/dev/null; then
@@ -237,7 +166,7 @@ if [[ -f "$config_fragment" ]]; then
             | sed 's/^/  /'
     else
         log_warn "uv not found; skipping [agents] defaults merge into config.toml"
-        log_warn "Add [agents] defaults from content/codex/config.toml manually"
+        log_warn "Add [agents] defaults from content/targets/codex/config.toml manually"
     fi
 fi
 

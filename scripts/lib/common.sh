@@ -7,6 +7,7 @@ CONTENT_ROOT="${REPO_ROOT}/content"
 
 CLAUDE_DIR="${HOME}/.claude"
 CODEX_DIR="${CODEX_HOME:-${HOME}/.codex}"
+PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
 CATEGORIES=(agents skills commands rules)
 
 # Colors
@@ -24,7 +25,7 @@ not_found=0
 # Discover available languages from directory structure.
 # No associative arrays: macOS ships bash 3.2, which lacks them.
 discover_languages() {
-    for cat in "${CATEGORIES[@]}" hooks; do
+    for cat in "${CATEGORIES[@]}" targets/claude/hooks; do
         local cat_dir="${CONTENT_ROOT:-$REPO_ROOT}/${cat}"
         [[ -d "$cat_dir" ]] || continue
         for dir in "$cat_dir"/*/; do
@@ -45,6 +46,8 @@ log_info() { echo -e "  ${CYAN}INFO${NC}  $1"; }
 log_warn() { echo -e "  ${RED}WARN${NC}  $1"; }
 log_rm()       { echo -e "  ${RED}RM${NC}    $1"; }
 log_not_found() { echo -e "  ${YELLOW}MISS${NC}  $1 (not installed)"; }
+log_symlink() { echo -e "  ${RED}WARN${NC}  $1 (symlink, not overwritten; update the link target by hand or remove the link and re-run)"; }
+log_keep() { echo -e "  ${YELLOW}SKIP${NC}  $1 (not written by this installer or differs from the shipped version; kept)"; }
 
 jq_install_hint() {
     log_warn "Install jq: sudo apt install jq (Debian/Ubuntu), brew install jq (macOS), sudo dnf install jq (Fedora), sudo pacman -S jq (Arch)"
@@ -58,13 +61,41 @@ codex_agents_label() {
     fi
 }
 
-codex_is_available() {
-    [[ -n "${CODEX_HOME:-}" ]] || [[ -d "$CODEX_DIR" ]] || command -v codex &>/dev/null
+# Target registry: every targets/<name>/target.sh defines target_is_available
+# (and optionally target_description). Each is sourced in a subshell so
+# function names cannot clash between targets.
+discover_targets() {
+    local f
+    for f in "${REPO_ROOT}"/targets/*/target.sh; do
+        [[ -f "$f" ]] || continue
+        basename "$(dirname "$f")"
+    done | sort
+}
+
+# True (0) iff target $1 is installed on this machine.
+target_detected() {
+    # shellcheck disable=SC1090
+    ( source "${REPO_ROOT}/targets/$1/target.sh"; target_is_available )
+}
+
+# One-line description of target $1 (empty when it defines none).
+target_summary() {
+    # shellcheck disable=SC1090
+    ( source "${REPO_ROOT}/targets/$1/target.sh"
+      if declare -F target_description >/dev/null; then target_description; fi )
 }
 
 # Copy a single file
 copy_file() {
     local src="$1" dest="$2" label_src="$3" label_dest="$4"
+
+    # Never write through a symlink, even with -f: the target may live
+    # outside the install dir (e.g. a user's git clone).
+    if [[ -L "$dest" ]]; then
+        log_symlink "$label_dest"
+        skipped=$((skipped + 1))
+        return
+    fi
 
     if $DRY_RUN; then
         log_dry "$label_src" "$label_dest"
@@ -85,6 +116,12 @@ copy_file() {
 # Copy a single file with ${CLAUDE_PLUGIN_ROOT} substitution
 copy_file_subst() {
     local src="$1" dest="$2" label_src="$3" label_dest="$4"
+
+    if [[ -L "$dest" ]]; then
+        log_symlink "$label_dest"
+        skipped=$((skipped + 1))
+        return
+    fi
 
     if $DRY_RUN; then
         log_dry "$label_src" "$label_dest"
@@ -109,6 +146,12 @@ copy_file_subst() {
 copy_dir() {
     local src="$1" dest="$2" label_src="$3" label_dest="$4"
 
+    if [[ -L "$dest" ]]; then
+        log_symlink "$label_dest"
+        skipped=$((skipped + 1))
+        return
+    fi
+
     if $DRY_RUN; then
         log_dry "$label_src" "$label_dest"
         copied=$((copied + 1))
@@ -127,6 +170,16 @@ copy_dir() {
         log_copy "$label_src" "$label_dest"
         copied=$((copied + 1))
     fi
+}
+
+# True (0) iff regular file $2 (not a symlink) is byte-identical to $1.
+dest_same_file() {
+    [[ -f "$2" && ! -L "$2" ]] && cmp -s "$1" "$2"
+}
+
+# True (0) iff directory $2 (not a symlink) has exactly the files of $1.
+dest_same_dir() {
+    [[ -d "$2" && ! -L "$2" ]] && diff -r -q "$1" "$2" >/dev/null 2>&1
 }
 
 # Remove a single file
