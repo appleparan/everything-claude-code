@@ -190,6 +190,7 @@ if [[ -d "$pi_agents_src" ]]; then
         name=$(basename "$f")
         copy_file "$f" "${PI_DIR}/agents/${name}" \
             "content/targets/pi/agents/${name}" "agents/${name}"
+        installed_unmanifested_add "agents/${name}"
     done
 fi
 echo ""
@@ -205,6 +206,7 @@ if [[ -d "$ext_src_dir" ]]; then
         ext_name=$(basename "$ext_dir")
         copy_dir "$ext_dir" "${PI_DIR}/extensions/${ext_name}" \
             "content/targets/pi/extensions/${ext_name}/" "extensions/${ext_name}/"
+        installed_unmanifested_add "extensions/${ext_name}"
     done
 fi
 install_upstream_extensions "${PI_DIR}/extensions" "extensions"

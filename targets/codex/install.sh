@@ -148,6 +148,7 @@ if [[ -d "$agents_src_dir" ]]; then
         name=$(basename "$f")
         copy_file "$f" "${CODEX_DIR}/agents/${name}" \
             "content/targets/codex/agents/${name}" "agents/${name}"
+        installed_unmanifested_add "agents/${name}"
     done
 fi
 echo ""

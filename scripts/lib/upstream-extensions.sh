@@ -93,6 +93,10 @@ install_upstream_extensions() {
         fi
 
         dest="${dest_dir}/${name}"
+        # Not in the prune manifest; keep the git-history fallback off it.
+        if declare -F installed_unmanifested_add >/dev/null; then
+            installed_unmanifested_add "${dest_label}/${name}"
+        fi
         if $DRY_RUN; then
             log_dry "${repo}@${ref:0:7} (${ext_path})" "${dest_label}/${name}/"
             copied=$((copied + 1))

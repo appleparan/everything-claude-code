@@ -238,5 +238,42 @@ if (!hasUv) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Prune git-history fallback must stay rename-aware and skip this run's roles
+// ---------------------------------------------------------------------------
+test('-p fallback with diff.renames=false never lists the installed role files', () => {
+  const repo = buildRepo();
+  const gitEnv = { ...process.env, GIT_CONFIG_SYSTEM: '/dev/null', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const g = (args) => {
+    const r = spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
+      cwd: repo, encoding: 'utf8', env: gitEnv
+    });
+    assert.strictEqual(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+  };
+  // History: roles lived in content/codex/agents, then moved (a rename).
+  fs.mkdirSync(path.join(repo, 'content', 'codex'), { recursive: true });
+  fs.renameSync(path.join(repo, 'content', 'targets', 'codex', 'agents'), path.join(repo, 'content', 'codex', 'agents'));
+  g(['init', '-q', '-b', 'main']);
+  g(['add', 'scripts', 'targets', 'content']);
+  g(['commit', '-q', '-m', 'old layout']);
+  fs.mkdirSync(path.join(repo, 'content', 'targets', 'codex'), { recursive: true });
+  g(['mv', 'content/codex/agents', 'content/targets/codex/agents']);
+  g(['commit', '-q', '-m', 'move roles']);
+
+  const cfg = path.join(mkCodexHome(), 'gitconfig');
+  fs.writeFileSync(cfg, '[diff]\n\trenames = false\n');
+  const codexHome = mkCodexHome();
+  const env = { ...process.env, CODEX_HOME: codexHome, GIT_CONFIG_GLOBAL: cfg, GIT_CONFIG_SYSTEM: '/dev/null' };
+  const res = spawnSync('bash', [path.join(repo, 'targets', 'codex', 'install.sh'), '-p', 'common'], {
+    env, encoding: 'utf8', input: 'n\n'
+  });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  const prune = res.stdout.slice(res.stdout.indexOf('[prune: git history fallback]'));
+  assert.ok(prune.includes('prune: git history fallback'), res.stdout);
+  assert.ok(!prune.includes('agents/explorer.toml'), prune);
+  assert.ok(!prune.includes('agents/worker.toml'), prune);
+  assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'worker.toml')));
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

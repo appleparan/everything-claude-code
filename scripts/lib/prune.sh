@@ -24,6 +24,25 @@ manifest_add() {
     MANIFEST_ENTRIES+=("${1}"$'\t'"${2}")
 }
 
+# Dests this run installs that are deliberately NOT in the manifest
+# (language-agnostic: codex roles, pi worker/scout, extensions). Recorded so
+# the git-history fallback never offers them for deletion, even when an old
+# path of the same dest shows up as deleted in history.
+INSTALLED_UNMANIFESTED=()
+
+# $1=relpath relative to the target's base dir.
+installed_unmanifested_add() {
+    INSTALLED_UNMANIFESTED+=("$1")
+}
+
+# Everything this run installs, manifested or not, one relpath per line.
+installed_full_dest_set() {
+    manifest_full_dest_set
+    if [[ ${#INSTALLED_UNMANIFESTED[@]} -gt 0 ]]; then
+        printf '%s\n' "${INSTALLED_UNMANIFESTED[@]}"
+    fi
+}
+
 manifest_file_path() {
     echo "${1}/.ecc-manifest"
 }
@@ -363,7 +382,7 @@ prune_git_history_fallback() {
     echo -e "${CYAN}[prune: git history fallback]${NC}"
 
     local deleted_paths
-    deleted_paths=$(git -C "$REPO_ROOT" log --all --diff-filter=D --name-only --pretty=format: 2>/dev/null \
+    deleted_paths=$(git -C "$REPO_ROOT" log --all -M --diff-filter=D --name-only --pretty=format: 2>/dev/null \
         | grep -v '^$' | sort -u || true)
     if [[ -z "$deleted_paths" ]]; then
         log_info "No historical deletions found."
@@ -394,10 +413,10 @@ prune_git_history_fallback() {
         dedup="${dedup}${dest}"$'\t'"${srcprefix}"$'\t'"${isdir}"$'\n'
     done <<< "$mapped"
 
-    # Drop candidates this run installs (regardless of lang), and candidates
-    # that don't exist locally.
+    # Drop candidates this run installs (regardless of lang, manifested or
+    # not), and candidates that don't exist locally.
     local full_dest_nl candidates=""
-    full_dest_nl=$(manifest_full_dest_set)
+    full_dest_nl=$(installed_full_dest_set)
     while IFS=$'\t' read -r dest srcprefix isdir; do
         [[ -z "$dest" ]] && continue
         if [[ -n "$full_dest_nl" ]] && printf '%s\n' "$full_dest_nl" | grep -Fxq "$dest"; then
