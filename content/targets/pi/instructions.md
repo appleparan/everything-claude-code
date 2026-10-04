@@ -1,11 +1,12 @@
 ## Harness: pi
 
 pi ships only a few built-in tools; the rest of this setup comes from
-the extensions, agents, prompts, and skills installed in `~/.pi/agent/`.
+the extensions, agents, prompts, and skills installed in the pi agent directory (`~/.pi/agent/` unless
+`PI_CODING_AGENT_DIR` is set).
 
 - **Delegation**: call the `subagent` tool. Use the `worker` agent
   (sonnet) for implementation and the `scout` agent (haiku) for
-  read-only exploration. Each file in `~/.pi/agent/agents/` sets its
+  read-only exploration. Each file in its `agents/` directory sets its
   own model; an agent without one inherits yours, so never route
   routine work to such an agent.
 - **Skills and commands**: run a skill with `/skill:<name>`. The
