@@ -147,7 +147,7 @@ if (!hasUv) {
 }
 
 const mergeConfig = path.join(repoRoot, 'targets', 'codex', 'merge-config.py');
-const configFragment = path.join(repoRoot, 'content', 'codex', 'config.toml');
+const configFragment = path.join(repoRoot, 'content', 'targets', 'codex', 'config.toml');
 
 function runMergeConfig(configText, fragmentPath, extraArgs = []) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-config-'));

@@ -114,9 +114,9 @@ that's shared/merged (`CLAUDE.md`, `settings.json`, `AGENTS.md`,
 | `content/skills/<lang>/<name>/` | `~/.claude/skills/<name>/` | Skill directories with `SKILL.md` |
 | `content/commands/<lang>/*.md` | `~/.claude/commands/` | Slash commands |
 | `content/rules/<lang>/*.md` | `~/.claude/rules/` | Always-follow guidelines |
-| `content/hooks/<lang>/hooks.json`, `global-hooks.json` | merged into `~/.claude/settings.json` | Global hooks |
-| `content/hooks/<lang>/project-hooks.json` | `~/.claude/project-hooks/<lang>.json` | Templates for `init-project.sh` |
-| `content/plugins/plugins.json` | merged into `~/.claude/settings.json` | Tracked plugins + marketplaces |
+| `content/targets/claude/hooks/<lang>/hooks.json`, `global-hooks.json` | merged into `~/.claude/settings.json` | Global hooks |
+| `content/targets/claude/hooks/<lang>/project-hooks.json` | `~/.claude/project-hooks/<lang>.json` | Templates for `init-project.sh` |
+| `content/targets/claude/plugins.json` | merged into `~/.claude/settings.json` | Tracked plugins + marketplaces |
 | `content/mcp/servers.json` | merged into `~/.claude.json` (`mcpServers`) | Opt-in via `-m` (off by default) |
 | `scripts/<lang>/hooks/`, `scripts/<lang>/lib/` | `~/.claude/scripts/<lang>/...` | Hook runtime scripts |
 
@@ -128,7 +128,7 @@ Hook handling details worth knowing:
   (permissions, model, enabled plugins, ...) are preserved.
 - After install, a smoke test warns about any hook that references a script
   path that doesn't exist.
-- `content/plugins/plugins.json` tracks Claude Code plugins: its
+- `content/targets/claude/plugins.json` tracks Claude Code plugins: its
   `enabledPlugins` and `extraKnownMarketplaces` keys are merged additively
   into `settings.json` (your untracked plugins survive), and Claude Code
   auto-installs the listed plugins on next startup. Refresh the tracked list
@@ -175,9 +175,9 @@ detected) installs into `$CODEX_HOME` or `~/.codex`:
 | `content/instructions/global.md` + rules index | `~/.codex/AGENTS.md` (generated) |
 | `content/rules/**` | `~/.codex/instructions/*.md` (flat, one file per rule) |
 | `content/skills/**` | `~/.codex/skills/<name>/` (invoked via `$skill-name`, e.g. `$git-commit-msg`) |
-| `content/plugins/codex-skills.json` | External skills shallow-cloned from their git repos into `~/.codex/skills/<name>/`. Each entry names a repo and the in-repo path of a directory containing `SKILL.md`. Language-agnostic (installed on every install, removed by uninstalling any language); entries are skipped with a warning when `git`/`jq` are missing, the clone fails, or the path has no `SKILL.md`. Existing skill dirs are only refreshed with `-f`. |
-| `content/codex/agents/*.toml` | `~/.codex/agents/<role>.toml` — custom subagent roles (`worker` on gpt-5.6-terra, `explorer` on gpt-5.6-luna) that override Codex's built-in roles so subagents never inherit the parent model. Language-agnostic (installed on every install, removed by uninstalling any language); existing files are only refreshed with `-f`. |
-| `content/codex/config.toml` | `[agents]` defaults (`default_subagent_model`) merged key-by-key into `~/.codex/config.toml`, with a timestamped backup; existing user keys win unless `-f`. Requires `uv`; if it's missing, the step is skipped with a warning. |
+| `content/external-skills.json` | External skills shallow-cloned from their git repos into `~/.codex/skills/<name>/`. Each entry names a repo and the in-repo path of a directory containing `SKILL.md`. Language-agnostic (installed on every install, removed by uninstalling any language); entries are skipped with a warning when `git`/`jq` are missing, the clone fails, or the path has no `SKILL.md`. Existing skill dirs are only refreshed with `-f`. |
+| `content/targets/codex/agents/*.toml` | `~/.codex/agents/<role>.toml` — custom subagent roles (`worker` on gpt-5.6-terra, `explorer` on gpt-5.6-luna) that override Codex's built-in roles so subagents never inherit the parent model. Language-agnostic (installed on every install, removed by uninstalling any language); existing files are only refreshed with `-f`. |
+| `content/targets/codex/config.toml` | `[agents]` defaults (`default_subagent_model`) merged key-by-key into `~/.codex/config.toml`, with a timestamped backup; existing user keys win unless `-f`. Requires `uv`; if it's missing, the step is skipped with a warning. |
 | `content/mcp/servers.json` | Opt-in via `-m` (off by default): `[mcp_servers.*]` merged into `~/.codex/config.toml`, with a timestamped backup of the existing file. Only servers tagged with a matching `languages` entry (plus untagged/common servers) are merged for the languages being installed. Requires `uv`; if it's missing, the MCP step is skipped with a warning and the entries can be added manually. |
 
 MCP server installation is opt-in on both targets — pass `-m` to merge
@@ -194,8 +194,8 @@ language that needs it.
 Codex has no slash-command concept and configures subagents through TOML
 role files rather than Markdown agents, so `content/agents/` and
 `content/commands/` are not installed there; Codex subagent roles come from
-`content/codex/agents/` instead (see the table above and the `performance`
-rule for the Claude ↔ Codex tier mapping). `content/hooks/` targets Claude
+`content/targets/codex/agents/` instead (see the table above and the `performance`
+rule for the Claude ↔ Codex tier mapping). `content/targets/claude/hooks/` targets Claude
 Code's tool-event hooks, which have no Codex lifecycle equivalent, so those
 are not installed either.
 
@@ -259,7 +259,7 @@ everything-claude-code/
 |       |-- uninstall.sh
 |       |-- build-agents-md.sh  # Generates AGENTS.md (global.md + rules index)
 |       |-- merge-mcp.py        # servers.json -> config.toml [mcp_servers.*] merge
-|       |-- merge-config.py     # content/codex/config.toml -> config.toml [agents] merge
+|       |-- merge-config.py     # content/targets/codex/config.toml -> config.toml [agents] merge
 |
 |-- scripts/          # Thin dispatchers + hook runtime scripts
 |   |-- install.sh           # --target claude|codex|all (default all)

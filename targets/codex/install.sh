@@ -18,10 +18,10 @@ Install shared configuration into Codex (\$CODEX_HOME or ~/.codex):
   AGENTS.md          Global instructions + rules index (generated)
   instructions/      Rules files, read on demand via the index
   skills/            Skill folders (invoked via \$skill-name), plus external
-                     skills tracked in content/plugins/codex-skills.json
-  agents/            Custom subagent roles from content/codex/agents/
+                     skills tracked in content/external-skills.json
+  agents/            Custom subagent roles from content/targets/codex/agents/
                      (e.g. worker/explorer model overrides)
-  config.toml        [agents] defaults from content/codex/config.toml always
+  config.toml        [agents] defaults from content/targets/codex/config.toml always
                      merged (when uv is available); [mcp_servers.*] entries
                      merged only with -m (backup created before either write)
 
@@ -129,12 +129,12 @@ for lang in "${LANGUAGES[@]}"; do
 done
 echo ""
 
-# 3.5 External skills, cloned from the repos tracked in codex-skills.json.
+# 3.5 External skills, cloned from the repos tracked in external-skills.json.
 # Language-agnostic like plugins.json: merged on every install, and kept out
 # of the per-language prune manifest. Failures (offline, bad path) warn and
 # skip the entry so the rest of the install still succeeds.
 install_external_skills() {
-    local src="${CONTENT_ROOT}/plugins/codex-skills.json"
+    local src="${CONTENT_ROOT}/external-skills.json"
     [[ -f "$src" ]] || return 0
 
     echo -e "${CYAN}[external skills]${NC}"
@@ -215,20 +215,20 @@ install_external_skills
 # skills: installed on every install and kept out of the per-language
 # manifest, since they are not tied to any one language's content.
 echo -e "${CYAN}[agents]${NC}"
-agents_src_dir="${CONTENT_ROOT}/codex/agents"
+agents_src_dir="${CONTENT_ROOT}/targets/codex/agents"
 if [[ -d "$agents_src_dir" ]]; then
     for f in "$agents_src_dir"/*.toml; do
         [[ -f "$f" ]] || continue
         name=$(basename "$f")
         copy_file "$f" "${CODEX_DIR}/agents/${name}" \
-            "content/codex/agents/${name}" "agents/${name}"
+            "content/targets/codex/agents/${name}" "agents/${name}"
     done
 fi
 echo ""
 
 # 4. [agents] defaults → config.toml. Always merged when uv is available;
 # this is independent of -m (MERGE_MCP only gates the [mcp] step below).
-config_fragment="${CONTENT_ROOT}/codex/config.toml"
+config_fragment="${CONTENT_ROOT}/targets/codex/config.toml"
 if [[ -f "$config_fragment" ]]; then
     echo -e "${CYAN}[config]${NC}"
     if command -v uv &>/dev/null; then
@@ -239,7 +239,7 @@ if [[ -f "$config_fragment" ]]; then
             | sed 's/^/  /'
     else
         log_warn "uv not found; skipping [agents] defaults merge into config.toml"
-        log_warn "Add [agents] defaults from content/codex/config.toml manually"
+        log_warn "Add [agents] defaults from content/targets/codex/config.toml manually"
     fi
 fi
 

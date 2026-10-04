@@ -207,8 +207,10 @@ prune_map_source() {
             printf '%s\t%s\t1\n' "skills/${skill}" "content/skills/${lang}/${skill}"
             return 0
         fi
-        if [[ "$srcpath" =~ ^content/hooks/([^/]+)/project-hooks\.json$ ]]; then
-            lang="${BASH_REMATCH[1]}"
+        # content/hooks/ moved to content/targets/claude/hooks/; git history
+        # holds both, so accept either source path.
+        if [[ "$srcpath" =~ ^content/(targets/claude/)?hooks/([^/]+)/project-hooks\.json$ ]]; then
+            lang="${BASH_REMATCH[2]}"
             lang_in_list "$lang" "$langs_nl" || return 0
             printf '%s\t%s\t0\n' "project-hooks/${lang}.json" "$srcpath"
             return 0
@@ -244,8 +246,9 @@ prune_map_source() {
 
     if [[ "$PRUNE_TARGET" == "codex" ]]; then
         # Custom subagent role files: language-agnostic, like external skills.
-        if [[ "$srcpath" =~ ^content/codex/agents/([^/]+\.toml)$ ]]; then
-            filename="${BASH_REMATCH[1]}"
+        # content/codex/ moved to content/targets/codex/; accept either path.
+        if [[ "$srcpath" =~ ^content/(targets/)?codex/agents/([^/]+\.toml)$ ]]; then
+            filename="${BASH_REMATCH[2]}"
             printf '%s\t%s\t0\n' "agents/${filename}" "$srcpath"
             return 0
         fi

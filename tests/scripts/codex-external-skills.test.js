@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Tests for external Codex skills: targets/codex/install.sh must clone the
- * repos listed in content/plugins/codex-skills.json and copy each tracked
+ * repos listed in content/external-skills.json and copy each tracked
  * skill directory into $CODEX_DIR/skills/<name>/, and uninstall.sh must
  * remove only the tracked entries.
  *
@@ -56,7 +56,7 @@ function writeFixtureContent(dir, skillsJson) {
   w('content/rules/common/coding-style.md', '# Coding Style\n');
   w('content/mcp/servers.json', JSON.stringify({ mcpServers: {} }, null, 2) + '\n');
   if (skillsJson !== null) {
-    w('content/plugins/codex-skills.json', JSON.stringify(skillsJson, null, 2) + '\n');
+    w('content/external-skills.json', JSON.stringify(skillsJson, null, 2) + '\n');
   }
 }
 
@@ -209,9 +209,9 @@ test('unclonable repo is skipped with a warning and does not fail install', () =
 });
 
 // ---------------------------------------------------------------------------
-// 6. No codex-skills.json: install succeeds without an external skills step
+// 6. No external-skills.json: install succeeds without an external skills step
 // ---------------------------------------------------------------------------
-test('install without codex-skills.json still succeeds', () => {
+test('install without external-skills.json still succeeds', () => {
   const repo = buildRepo(null);
   const codexHome = mkCodexHome();
   const res = runScript(repo, 'install.sh', ['common'], codexHome);

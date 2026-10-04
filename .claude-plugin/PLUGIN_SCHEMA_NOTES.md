@@ -241,12 +241,12 @@ but two things are worth calling out explicitly:
   the move did not relax the "no directory paths for agents" rule.
 * **`hooks` still must not be added to `plugin.json`.** The regression test
   in `tests/hooks/hooks.test.js` covers this at the new path too.
-* **`content/hooks/common/hooks.json` is NOT at the auto-load path
+* **`content/targets/claude/hooks/common/hooks.json` is NOT at the auto-load path
   `hooks/hooks.json`.** Claude Code's plugin auto-load convention looks for
   `hooks/hooks.json` relative to the plugin root, literally one level deep.
   Before this restructure, the file already lived at `hooks/common/hooks.json`
   (nested a level deeper than the auto-load path); after the restructure it
-  lives at `content/hooks/common/hooks.json` (nested two levels deeper).
+  lives at `content/targets/claude/hooks/common/hooks.json` (nested two levels deeper).
   Neither path collides with the auto-load convention, so **plugin hook
   auto-loading behavior is unchanged by the move** - it neither started nor
   stopped triggering the duplicate-detection error described above.

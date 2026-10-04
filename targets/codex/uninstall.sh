@@ -15,8 +15,8 @@ Uninstall shared configuration from Codex (\$CODEX_HOME or ~/.codex):
   AGENTS.md          Global instructions + rules index (generated)
   instructions/      Rules files, read on demand via the index
   skills/            Skill folders (invoked via \$skill-name), plus external
-                     skills tracked in content/plugins/codex-skills.json
-  agents/            Custom subagent roles from content/codex/agents/
+                     skills tracked in content/external-skills.json
+  agents/            Custom subagent roles from content/targets/codex/agents/
   config.toml        Left untouched (user state); manual-removal hints printed
 
 Options:
@@ -97,10 +97,10 @@ for lang in "${LANGUAGES[@]}"; do
         remove_dir "${CODEX_DIR}/skills/${skill_name}" "skills/${skill_name}/"
     done
 done
-# Tracked external skills (content/plugins/codex-skills.json) are
+# Tracked external skills (content/external-skills.json) are
 # language-agnostic: uninstalling any language removes all tracked entries,
 # mirroring the plugins.json semantics on the Claude side.
-ext_src="${CONTENT_ROOT}/plugins/codex-skills.json"
+ext_src="${CONTENT_ROOT}/external-skills.json"
 if [[ -f "$ext_src" ]]; then
     if command -v jq &>/dev/null; then
         while IFS= read -r ext_name; do
@@ -114,14 +114,14 @@ if [[ -f "$ext_src" ]]; then
             remove_dir "${CODEX_DIR}/skills/${ext_name}" "skills/${ext_name}/"
         done < <(jq -r '(.skills // [])[].name' "$ext_src")
     else
-        log_info "jq not found; remove external skills from codex-skills.json manually"
+        log_info "jq not found; remove external skills from external-skills.json manually"
     fi
 fi
 cleanup_empty_dir "${CODEX_DIR}/skills" "skills/"
 echo ""
 
 echo -e "${CYAN}[agents]${NC}"
-agents_src_dir="${CONTENT_ROOT}/codex/agents"
+agents_src_dir="${CONTENT_ROOT}/targets/codex/agents"
 if [[ -d "$agents_src_dir" ]]; then
     for f in "$agents_src_dir"/*.toml; do
         [[ -f "$f" ]] || continue
@@ -139,7 +139,7 @@ if command -v jq &>/dev/null; then
         log_info "remove [mcp_servers.${name}] from ${DEST_LABEL}/config.toml manually if unwanted"
     done < <(jq -r '.mcpServers | keys[]' "${CONTENT_ROOT}/mcp/servers.json")
 fi
-log_info "remove [agents] default_subagent_model (installed from content/codex/config.toml) from ${DEST_LABEL}/config.toml manually if unwanted"
+log_info "remove [agents] default_subagent_model (installed from content/targets/codex/config.toml) from ${DEST_LABEL}/config.toml manually if unwanted"
 
 echo ""
 echo "────────────────────────────────"

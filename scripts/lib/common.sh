@@ -24,7 +24,7 @@ not_found=0
 # Discover available languages from directory structure.
 # No associative arrays: macOS ships bash 3.2, which lacks them.
 discover_languages() {
-    for cat in "${CATEGORIES[@]}" hooks; do
+    for cat in "${CATEGORIES[@]}" targets/claude/hooks; do
         local cat_dir="${CONTENT_ROOT:-$REPO_ROOT}/${cat}"
         [[ -d "$cat_dir" ]] || continue
         for dir in "$cat_dir"/*/; do
