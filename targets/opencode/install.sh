@@ -136,7 +136,11 @@ elif [[ ! -e "$oc_json_dest" ]] || opencode_json_is_ours "$oc_json_dest"; then
         "content/targets/opencode/opencode.json" "opencode.json"
     FORCE=$saved_force
 else
-    log_warn "opencode.json exists and is not ours; left untouched. Merge the permissions array from content/targets/opencode/opencode.json into your own config by hand"
+    if command -v git &>/dev/null && git -C "$REPO_ROOT" rev-parse &>/dev/null; then
+        log_warn "opencode.json exists and differs from the shipped version; left untouched. Merge the permissions array from content/targets/opencode/opencode.json into your own config by hand"
+    else
+        log_warn "opencode.json differs from the shipped version (older shipped versions cannot be recognized without git); left untouched. Merge the permissions array from content/targets/opencode/opencode.json into your own config by hand"
+    fi
     skipped=$((skipped + 1))
 fi
 echo ""

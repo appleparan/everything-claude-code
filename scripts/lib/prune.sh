@@ -438,14 +438,14 @@ prune_map_source() {
     fi
 }
 
-# True (0) iff local file $1 is byte-identical (per `git hash-object`) to
+# True (0) iff local file $1 is byte-identical (per `git hash-object --no-filters`) to
 # SOME historical version of repo-relative path $2 (`git rev-parse
 # <commit>:<path>` over every commit that ever touched it).
 prune_verify_file() {
     local local_path="$1" srcpath="$2"
     [[ -f "$local_path" ]] || return 1
     local local_hash
-    local_hash=$(git hash-object "$local_path" 2>/dev/null) || return 1
+    local_hash=$(git hash-object --no-filters "$local_path" 2>/dev/null) || return 1
 
     local commit blob_hash
     while IFS= read -r commit; do

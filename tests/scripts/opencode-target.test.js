@@ -317,7 +317,9 @@ test('every destructive command matches some opencode.json rule', () => {
     'git clean -xdf', 'git clean -dfx', 'git clean -fdx', 'git clean -ffdx', 'git clean -d -f',
     'git clean --force', 'git worktree remove --force x', 'git worktree remove -f x', 'git branch -D x',
     'git commit --no-verify -m x', 'chmod 777 x', 'chmod -R 777 x', 'chown -R me /x',
-    'git checkout -- file', 'git restore file'
+    'git checkout -- file', 'git restore file', 'git clean -Xdf', 'git clean -dXf', 'git clean -qfd', 'rm x -rf',
+    'git checkout .', 'git checkout HEAD -- x', 'git checkout -f main', 'git switch --discard-changes',
+    'git switch -f main', 'git branch --delete --force x', 'git branch x --force'
   ];
   const missed = bad.filter((c) => !anyRule(c));
   assert.deepStrictEqual(missed, []);
@@ -327,7 +329,7 @@ test('common safe commands match no opencode.json rule', () => {
   const safe = [
     'git status', 'git push -u origin feat/x', 'git push origin feat/x:feat/x', 'git clean -n', 'git clean -nd src/foo',
     'rm file.txt', 'ls -la', 'git commit -m "x"', 'git log --format=x', 'git diff', 'git checkout main',
-    'git checkout -b feat/x', 'git branch -d x', 'chmod 644 x', 'git -C /x status', 'git reset HEAD file'
+    'git checkout -b feat/x', 'git switch main', 'git clean -Xn', 'git branch -d x', 'chmod 644 x', 'git -C /x status', 'git reset HEAD file'
   ];
   const hit = safe.filter(anyRule);
   assert.deepStrictEqual(hit, []);
