@@ -164,7 +164,7 @@ test('--target pi without pi fails', () => {
 test('default target all skips pi with INFO when pi is absent', () => {
   const res = run(['-n', 'common']);
   assert.strictEqual(res.status, 0, res.stderr);
-  assert.ok(res.stdout.includes('Pi not detected; skipping pi target'), res.stdout);
+  assert.ok(res.stdout.includes('pi not detected; skipping pi target'), res.stdout);
 });
 
 test('target all with -m installs pi when detected (-m ignored)', () => {
@@ -202,7 +202,7 @@ test('--target opencode without OpenCode fails', () => {
 test('default target all skips opencode with INFO when OpenCode is absent', () => {
   const res = run(['-n', 'common']);
   assert.strictEqual(res.status, 0, res.stderr);
-  assert.ok(res.stdout.includes('Opencode not detected; skipping opencode target'), res.stdout);
+  assert.ok(res.stdout.includes('OpenCode not detected; skipping opencode target'), res.stdout);
 });
 
 test('target all with -m installs opencode when detected (-m ignored)', () => {

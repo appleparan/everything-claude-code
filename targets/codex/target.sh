@@ -13,3 +13,7 @@ target_is_available() {
 target_description() {
     echo "~/.codex (AGENTS.md, instructions, skills, MCP)"
 }
+
+target_display_name() {
+    echo "Codex"
+}

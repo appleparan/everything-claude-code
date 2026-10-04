@@ -86,6 +86,19 @@ target_summary() {
       if declare -F target_description >/dev/null; then target_description; fi )
 }
 
+# Human-readable name of target $1 for messages: target_display_name from its
+# target.sh when defined, else the target directory name with a capital.
+target_label() {
+    local name
+    # shellcheck disable=SC1090
+    name=$( source "${REPO_ROOT}/targets/$1/target.sh"
+      if declare -F target_display_name >/dev/null; then target_display_name; fi )
+    if [[ -z "$name" ]]; then
+        name="$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]')${1:1}"
+    fi
+    echo "$name"
+}
+
 # Copy a single file
 copy_file() {
     local src="$1" dest="$2" label_src="$3" label_dest="$4"
