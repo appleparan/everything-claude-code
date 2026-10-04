@@ -107,7 +107,7 @@ for lang in "${LANGUAGES[@]}"; do
         name=$(basename "$f")
         copy_file "$f" "${PI_DIR}/instructions/${name}" \
             "content/rules/${lang}/${name}" "instructions/${name}"
-        manifest_add "$lang" "instructions/${name}"
+        manifest_add_file "$lang" "instructions/${name}" "$f" "${PI_DIR}/instructions/${name}"
     done
 done
 echo ""
@@ -133,7 +133,7 @@ for lang in "${LANGUAGES[@]}"; do
         [[ "$skill_name" == .* ]] && continue
         copy_dir "$skill_dir" "${PI_DIR}/skills/${skill_name}" \
             "content/skills/${lang}/${skill_name}/" "skills/${skill_name}/"
-        manifest_add "$lang" "skills/${skill_name}"
+        manifest_add_dir "$lang" "skills/${skill_name}" "$skill_dir" "${PI_DIR}/skills/${skill_name}"
     done
 done
 echo ""
@@ -152,7 +152,7 @@ for lang in "${LANGUAGES[@]}"; do
         name=$(basename "$f")
         copy_file "$f" "${PI_DIR}/prompts/${name}" \
             "content/commands/${lang}/${name}" "prompts/${name}"
-        manifest_add "$lang" "prompts/${name}"
+        manifest_add_file "$lang" "prompts/${name}" "$f" "${PI_DIR}/prompts/${name}"
     done
 done
 echo ""
@@ -171,16 +171,23 @@ for lang in "${LANGUAGES[@]}"; do
         if ! $DRY_RUN && [[ -f "$dest" ]] && ! $FORCE; then
             log_skip "agents/${name}"
             skipped=$((skipped + 1))
-        else
-            pi_convert_agent "$f" "$dest" "${name%.md}"
+        elif pi_convert_agent "$f" "$dest" "${name%.md}"; then
             if $DRY_RUN; then
                 log_dry "content/agents/${lang}/${name}" "agents/${name}"
             else
                 log_copy "content/agents/${lang}/${name}" "agents/${name}"
             fi
             copied=$((copied + 1))
+        else
+            skipped=$((skipped + 1))
         fi
-        manifest_add "$lang" "agents/${name}"
+        # Recorded as managed only if the dest is exactly what we install;
+        # a skipped user file must never be pruned later.
+        if $DRY_RUN || pi_agent_matches "$f" "$dest"; then
+            manifest_add "$lang" "agents/${name}"
+        else
+            manifest_add_unowned "$lang" "agents/${name}"
+        fi
     done
 done
 pi_agents_src="${CONTENT_ROOT}/targets/pi/agents"

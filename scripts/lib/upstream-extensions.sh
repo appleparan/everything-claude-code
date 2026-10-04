@@ -8,8 +8,13 @@
 # commit SHA and only the listed files are copied.
 
 # jq filters on one line (see JQ_MERGE_HOOKS in install.sh for why).
-JQ_UPSTREAM_EXTENSIONS='(.extensions // [])[] | [.name, .repo, .ref, .path, ((.files // []) | join(" "))] | @tsv'
+JQ_UPSTREAM_EXTENSIONS='(.extensions // [])[] | [.name, .repo, .ref, .path] | @tsv'
+# One file name per line for the entry named $n (no word splitting later).
+JQ_UPSTREAM_FILES='(.extensions // [])[] | select(.name == $n) | (.files // [])[]'
 JQ_UPSTREAM_EXTENSION_NAMES='(.extensions // [])[] | .name'
+
+# Written into each installed upstream extension dir; holds the pinned ref.
+UPSTREAM_MARKER=".ecc-upstream"
 
 UPSTREAM_EXTENSIONS_JSON="${CONTENT_ROOT}/targets/pi/upstream-extensions.json"
 
@@ -35,13 +40,28 @@ upstream_safe_path() {
     return 0
 }
 
+# True (0) iff $1 is a safe file name inside the extension dir: one path
+# segment, no "..", no glob characters.
+upstream_safe_file() {
+    upstream_safe_name "$1" || return 1
+    case "$1" in
+        *..*|*[\*\?\[\]]*) return 1 ;;
+    esac
+    return 0
+}
+
+# True (0) iff $1 is a full lowercase commit SHA.
+upstream_valid_ref() {
+    [[ "$1" =~ ^[0-9a-f]{40}$ ]]
+}
+
 # Shallow-fetch commit <ref> of <repo> into <dir>. Fetching a SHA directly
 # works on GitHub; a plain `git clone` cannot target an arbitrary commit.
 upstream_fetch() {
     local repo="$1" ref="$2" dir="$3"
     git -C "$dir" init -q \
-        && git -C "$dir" remote add origin "$repo" \
-        && GIT_TERMINAL_PROMPT=0 git -C "$dir" fetch -q --depth 1 origin "$ref" \
+        && git -C "$dir" remote add -- origin "$repo" \
+        && GIT_TERMINAL_PROMPT=0 git -C "$dir" fetch -q --depth 1 -- origin "$ref" \
         && git -C "$dir" checkout -q FETCH_HEAD
 }
 
@@ -68,27 +88,37 @@ install_upstream_extensions() {
         return 0
     fi
 
-    local name repo ref ext_path files dest f missing copy_ok
-    while IFS=$'\t' read -r name repo ref ext_path files; do
+    local name repo ref ext_path files_nl dest f bad copy_ok
+    while IFS=$'\t' read -r name repo ref ext_path; do
         [[ -n "$name" ]] || continue
         if ! upstream_safe_name "$name"; then
             log_warn "${dest_label}/${name}: invalid name; skipped"
             continue
         fi
-        if [[ -z "$repo" || -z "$ref" || -z "$ext_path" || -z "$files" ]]; then
+        files_nl=$(jq -r --arg n "$name" "$JQ_UPSTREAM_FILES" "$UPSTREAM_EXTENSIONS_JSON")
+        if [[ -z "$repo" || -z "$ref" || -z "$ext_path" || -z "$files_nl" ]]; then
             log_warn "${dest_label}/${name}: missing repo, ref, path or files; skipped"
             continue
         fi
+        if ! upstream_valid_ref "$ref"; then
+            log_warn "${dest_label}/${name}: invalid ref '${ref}' (need a 40-char lowercase commit SHA); skipped"
+            continue
+        fi
+        case "$repo" in
+            -*)
+                log_warn "${dest_label}/${name}: invalid repo '${repo}'; skipped"
+                continue ;;
+        esac
         if ! upstream_safe_path "$ext_path"; then
             log_warn "${dest_label}/${name}: invalid path '${ext_path}'; skipped"
             continue
         fi
-        missing=false
-        for f in $files; do
-            upstream_safe_name "$f" || missing=true
-        done
-        if $missing; then
-            log_warn "${dest_label}/${name}: invalid file list '${files}'; skipped"
+        bad=false
+        while IFS= read -r f; do
+            upstream_safe_file "$f" || bad=true
+        done <<< "$files_nl"
+        if $bad; then
+            log_warn "${dest_label}/${name}: invalid file name in file list; skipped"
             continue
         fi
 
@@ -96,6 +126,17 @@ install_upstream_extensions() {
         # Not in the prune manifest; keep the git-history fallback off it.
         if declare -F installed_unmanifested_add >/dev/null; then
             installed_unmanifested_add "${dest_label}/${name}"
+        fi
+        # Never write through a symlinked dest dir or dest file (even with -f).
+        bad=false
+        [[ -L "$dest" ]] && bad=true
+        while IFS= read -r f; do
+            [[ -L "${dest}/${f}" ]] && bad=true
+        done <<< "$files_nl"
+        if $bad; then
+            log_symlink "${dest_label}/${name}/"
+            skipped=$((skipped + 1))
+            continue
         fi
         if $DRY_RUN; then
             log_dry "${repo}@${ref:0:7} (${ext_path})" "${dest_label}/${name}/"
@@ -114,24 +155,29 @@ install_upstream_extensions() {
             rm -rf "${ext_tmp:?}"; ext_tmp=""
             continue
         fi
-        missing=false
-        for f in $files; do
-            if [[ ! -f "${ext_tmp}/${ext_path}/${f}" ]]; then
+        bad=false
+        while IFS= read -r f; do
+            if [[ -L "${ext_tmp}/${ext_path}/${f}" ]]; then
+                log_warn "${dest_label}/${name}: ${ext_path}/${f} is a symlink in the fetched tree; skipped"
+                bad=true
+            elif [[ ! -f "${ext_tmp}/${ext_path}/${f}" ]]; then
                 log_warn "${dest_label}/${name}: ${ext_path}/${f} not found at ${ref:0:7}; skipped"
-                missing=true
+                bad=true
             fi
-        done
-        if $missing; then
+        done <<< "$files_nl"
+        if $bad; then
             rm -rf "${ext_tmp:?}"; ext_tmp=""
             continue
         fi
         # Guarded so one broken entry cannot abort the rest of the install
-        # under set -e.
+        # under set -e. The .ecc-upstream marker (the ref) tells uninstall
+        # that this dir was written by us, not by the user.
         copy_ok=true
         mkdir -p "$dest" || copy_ok=false
-        for f in $files; do
+        while IFS= read -r f; do
             cp "${ext_tmp}/${ext_path}/${f}" "${dest}/${f}" || copy_ok=false
-        done
+        done <<< "$files_nl"
+        printf '%s\n' "$ref" > "${dest}/${UPSTREAM_MARKER}" || copy_ok=false
         if ! $copy_ok; then
             log_warn "${dest_label}/${name}: copy failed; skipped"
             rm -rf "${ext_tmp:?}"; ext_tmp=""

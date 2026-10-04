@@ -6,7 +6,8 @@
 # tool names becomes a comma-separated list of pi tool names. Everything else,
 # including `model:` and the body, is copied byte for byte.
 
-# POSIX awk only, and only inside the frontmatter block (first two --- lines).
+# POSIX awk only (the single quote arrives via -v q, since \047 escapes inside
+# regexes are not portable to BWK awk on macOS), and only inside the frontmatter block (first two --- lines).
 # Unknown tools are reported on stderr as "<tool>" lines.
 # shellcheck disable=SC2016
 PI_AGENT_AWK='
@@ -24,7 +25,7 @@ infm && $0 == "---" { infm = 0; print; next }
 infm && $0 ~ /^tools:/ {
     line = $0
     sub(/^tools:[ \t]*/, "", line)
-    gsub(/\[/, "", line); gsub(/\]/, "", line); gsub(/"/, "", line); gsub(/\047/, "", line)
+    gsub(/\[/, "", line); gsub(/\]/, "", line); gsub(/"/, "", line); gsub(q, "", line)
     gsub(/[ \t\r]/, "", line)
     n = split(line, parts, ",")
     out = ""
@@ -40,15 +41,36 @@ infm && $0 ~ /^tools:/ {
 { print }
 '
 
+# Prints the converted agent on stdout; dropped tools go to stderr, one per line.
+pi_agent_render() {
+    awk -v q="'" "$PI_AGENT_AWK" "$1"
+}
+
+# True (0) iff regular file $2 is exactly what installing agent $1 writes now.
+pi_agent_matches() {
+    local out rc=1
+    [[ -f "$2" && ! -L "$2" ]] || return 1
+    out=$(mktemp)
+    if pi_agent_render "$1" >"$out" 2>/dev/null && cmp -s "$out" "$2"; then rc=0; fi
+    rm -f "$out"
+    return "$rc"
+}
+
 # Usage: pi_convert_agent <src.md> <dest.md> <agent-name>
 # Logs a WARN per dropped tool. Writes <dest.md> unless DRY_RUN is set.
+# Returns 1 (WARN, nothing written) when <dest.md> is a symlink: -f must not
+# write through it.
 pi_convert_agent() {
     local src="$1" dest="$2" name="$3" warn_file tool
+    if [[ -L "$dest" ]]; then
+        log_symlink "agents/${name}.md"
+        return 1
+    fi
     warn_file=$(mktemp)
     if $DRY_RUN; then
-        awk "$PI_AGENT_AWK" "$src" >/dev/null 2>"$warn_file"
+        pi_agent_render "$src" >/dev/null 2>"$warn_file"
     else
-        awk "$PI_AGENT_AWK" "$src" >"$dest" 2>"$warn_file"
+        pi_agent_render "$src" >"$dest" 2>"$warn_file"
     fi
     while IFS= read -r tool; do
         [[ -n "$tool" ]] || continue

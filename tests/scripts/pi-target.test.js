@@ -389,6 +389,193 @@ test('dry-run with -n makes no fetch even when upstream is enabled', () => {
 });
 
 // ---------------------------------------------------------------------------
+// User files survive uninstall and -p (install skipped them)
+// ---------------------------------------------------------------------------
+function readManifest(piDir) {
+  const p = path.join(piDir, '.ecc-manifest');
+  return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+}
+
+fetchTest('user AGENTS.md, extensions/subagent/ and agents/planner.md that install skipped survive uninstall and -p', () => {
+  const up = makeUpstreamRepo({ 'index.ts': 'INDEX\n', 'agents.ts': 'AGENTS\n' });
+  const repo = buildRepo();
+  writeUpstreamJson(repo, {
+    name: 'subagent', repo: up.bare, ref: up.sha, path: up.base, files: ['index.ts', 'agents.ts']
+  });
+  const piDir = mkDir('ecc-pi-dest-');
+  fs.mkdirSync(path.join(piDir, 'agents'));
+  fs.mkdirSync(path.join(piDir, 'extensions', 'subagent'), { recursive: true });
+  fs.writeFileSync(path.join(piDir, 'AGENTS.md'), '# my own instructions\n');
+  fs.writeFileSync(path.join(piDir, 'agents', 'planner.md'), 'USER PLANNER\n');
+  fs.writeFileSync(path.join(piDir, 'extensions', 'subagent', 'index.ts'), 'USER EXT\n');
+  const env = { ECC_SKIP_UPSTREAM: '' };
+
+  const inst = runScript(repo, 'install.sh', ['common'], piDir, env);
+  assert.strictEqual(inst.status, 0, inst.stderr + inst.stdout);
+  assert.ok(!/agents\/planner\.md/.test(readManifest(piDir)), 'skipped user file entered the manifest');
+
+  const pruned = runScript(repo, 'install.sh', ['-p', 'common'], piDir, env);
+  assert.strictEqual(pruned.status, 0, pruned.stderr + pruned.stdout);
+  const un = runScript(repo, 'uninstall.sh', ['common'], piDir, env);
+  assert.strictEqual(un.status, 0, un.stderr + un.stdout);
+
+  assert.strictEqual(fs.readFileSync(path.join(piDir, 'AGENTS.md'), 'utf8'), '# my own instructions\n');
+  assert.strictEqual(fs.readFileSync(path.join(piDir, 'agents', 'planner.md'), 'utf8'), 'USER PLANNER\n');
+  assert.strictEqual(fs.readFileSync(path.join(piDir, 'extensions', 'subagent', 'index.ts'), 'utf8'), 'USER EXT\n');
+  assert.ok(/SKIP/.test(un.stdout), un.stdout);
+});
+
+test('a user edit of a skipped installed file is not pruned after a reinstall', () => {
+  const repo = buildRepo();
+  const piDir = mkDir('ecc-pi-dest-');
+  assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
+  fs.writeFileSync(path.join(piDir, 'agents', 'planner.md'), 'USER EDIT\n');
+  fs.writeFileSync(path.join(piDir, 'prompts', 'plan.md'), 'USER EDIT\n');
+  assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
+  assert.strictEqual(runScript(repo, 'install.sh', ['-p', 'common'], piDir).status, 0);
+  assert.strictEqual(fs.readFileSync(path.join(piDir, 'agents', 'planner.md'), 'utf8'), 'USER EDIT\n');
+  assert.strictEqual(fs.readFileSync(path.join(piDir, 'prompts', 'plan.md'), 'utf8'), 'USER EDIT\n');
+});
+
+test('uninstall keeps installed files that were edited, removes untouched ones', () => {
+  const repo = buildRepo();
+  const piDir = mkDir('ecc-pi-dest-');
+  assert.strictEqual(runScript(repo, 'install.sh', ['common'], piDir).status, 0);
+  const edited = [
+    'prompts/plan.md', 'agents/planner.md', 'agents/worker.md', 'instructions/coding-style.md',
+    'extensions/ecc-safety/index.ts'
+  ];
+  for (const t of edited) fs.writeFileSync(path.join(piDir, t), 'USER EDIT\n');
+  fs.writeFileSync(path.join(piDir, 'skills', 'example-skill', 'SKILL.md'), 'USER EDIT\n');
+  fs.writeFileSync(path.join(piDir, 'AGENTS.md'), '# replaced by the user\n');
+
+  const res = runScript(repo, 'uninstall.sh', ['common'], piDir);
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  for (const t of [...edited, 'skills/example-skill/SKILL.md', 'AGENTS.md']) {
+    assert.ok(fs.existsSync(path.join(piDir, t)), `${t} was edited and must be kept`);
+  }
+  assert.ok(!fs.existsSync(path.join(piDir, 'agents', 'scout.md')), 'untouched scout.md is removed');
+  assert.ok(!fs.existsSync(path.join(piDir, 'prompts', 'extra.md')), 'untouched prompt is removed');
+  assert.ok(!fs.existsSync(path.join(piDir, 'agents', 'notools.md')), 'untouched converted agent is removed');
+});
+
+fetchTest('upstream install writes the .ecc-upstream marker with the ref', () => {
+  const up = makeUpstreamRepo({ 'index.ts': 'INDEX\n', 'agents.ts': 'AGENTS\n' });
+  const repo = buildRepo();
+  writeUpstreamJson(repo, {
+    name: 'subagent', repo: up.bare, ref: up.sha, path: up.base, files: ['index.ts', 'agents.ts']
+  });
+  const piDir = mkDir('ecc-pi-dest-');
+  const res = runScript(repo, 'install.sh', ['common'], piDir, { ECC_SKIP_UPSTREAM: '' });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.strictEqual(
+    fs.readFileSync(path.join(piDir, 'extensions', 'subagent', '.ecc-upstream'), 'utf8').trim(), up.sha);
+});
+
+// ---------------------------------------------------------------------------
+// -f never writes through symlinks
+// ---------------------------------------------------------------------------
+fetchTest('install -f leaves symlinked destinations and their targets untouched', () => {
+  const up = makeUpstreamRepo({ 'index.ts': 'INDEX\n', 'agents.ts': 'AGENTS\n' });
+  const repo = buildRepo();
+  writeUpstreamJson(repo, {
+    name: 'subagent', repo: up.bare, ref: up.sha, path: up.base, files: ['index.ts', 'agents.ts']
+  });
+  const piDir = mkDir('ecc-pi-dest-');
+  const clone = mkDir('ecc-pi-clone-');
+  const link = (target, dest, content, dir = false) => {
+    const t = path.join(clone, target);
+    if (dir) {
+      fs.mkdirSync(t, { recursive: true });
+      fs.writeFileSync(path.join(t, 'f.txt'), content);
+    } else {
+      fs.writeFileSync(t, content);
+    }
+    fs.mkdirSync(path.dirname(path.join(piDir, dest)), { recursive: true });
+    fs.symlinkSync(t, path.join(piDir, dest));
+  };
+  link('worker.md', 'agents/worker.md', 'CLONE WORKER\n');
+  link('planner.md', 'agents/planner.md', 'CLONE PLANNER\n');
+  link('plan.md', 'prompts/plan.md', 'CLONE PLAN\n');
+  link('skill', 'skills/example-skill', 'CLONE SKILL\n', true);
+  link('ext', 'extensions/ecc-safety', 'CLONE EXT\n', true);
+  fs.mkdirSync(path.join(piDir, 'extensions', 'subagent'), { recursive: true });
+  link('index.ts', 'extensions/subagent/index.ts', 'CLONE INDEX\n');
+
+  const res = runScript(repo, 'install.sh', ['-f', 'common'], piDir, { ECC_SKIP_UPSTREAM: '' });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(/WARN.*symlink, not overwritten/.test(res.stdout), res.stdout);
+  const read = (f) => fs.readFileSync(path.join(clone, f), 'utf8');
+  assert.strictEqual(read('worker.md'), 'CLONE WORKER\n');
+  assert.strictEqual(read('planner.md'), 'CLONE PLANNER\n');
+  assert.strictEqual(read('plan.md'), 'CLONE PLAN\n');
+  assert.strictEqual(read('index.ts'), 'CLONE INDEX\n');
+  assert.deepStrictEqual(fs.readdirSync(path.join(clone, 'skill')), ['f.txt']);
+  assert.deepStrictEqual(fs.readdirSync(path.join(clone, 'ext')), ['f.txt']);
+  assert.ok(fs.lstatSync(path.join(piDir, 'agents', 'worker.md')).isSymbolicLink());
+  assert.ok(!fs.existsSync(path.join(piDir, 'extensions', 'subagent', 'agents.ts')), 'entry skipped as a whole');
+  assert.ok(!/(^|\n)(skills\/example-skill|extensions\/ecc-safety|agents\/worker\.md)/.test(readManifest(piDir)));
+});
+
+fetchTest('a symlink inside the fetched upstream tree is skipped with a WARN', () => {
+  const up = makeUpstreamRepo({ 'index.ts': 'INDEX\n', 'agents.ts': 'AGENTS\n' });
+  // Replace agents.ts in the bare repo's history with a symlink via a fresh commit.
+  const work = mkDir('ecc-pi-upstream-sym-');
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
+  sh('git', ['clone', '-q', up.bare, work], { env });
+  const base = path.join(work, up.base);
+  fs.rmSync(path.join(base, 'agents.ts'));
+  fs.symlinkSync('/etc/hostname', path.join(base, 'agents.ts'));
+  const id = ['-c', 'user.email=t@t', '-c', 'user.name=t'];
+  sh('git', [...id, 'commit', '-q', '-am', 'symlink'], { cwd: work, env });
+  sh('git', ['push', '-q', 'origin', 'HEAD:master'], { cwd: work, env });
+  sh('git', ['push', '-q', 'origin', 'HEAD:main'], { cwd: work, env });
+  const sha = sh('git', ['rev-parse', 'HEAD'], { cwd: work, env }).stdout.trim();
+  const repo = buildRepo();
+  writeUpstreamJson(repo, { name: 'subagent', repo: up.bare, ref: sha, path: up.base, files: ['index.ts', 'agents.ts'] });
+  const piDir = mkDir('ecc-pi-dest-');
+  const res = runScript(repo, 'install.sh', ['common'], piDir, { ECC_SKIP_UPSTREAM: '' });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(/WARN.*agents\.ts.*symlink/.test(res.stdout), res.stdout);
+  assert.ok(!fs.existsSync(path.join(piDir, 'extensions', 'subagent', 'agents.ts')));
+});
+
+fetchTest('upstream file names with .., a leading /, or glob characters are rejected', () => {
+  const repo = buildRepo();
+  const piDir = mkDir('ecc-pi-dest-');
+  for (const bad of ['../x.ts', '/etc/passwd', '*.ts', 'a?.ts', '[a].ts']) {
+    writeUpstreamJson(repo, {
+      name: 'subagent', repo: path.join(os.tmpdir(), 'ecc-pi-none.git'), ref: 'a'.repeat(40), path: 'x',
+      files: ['index.ts', bad]
+    });
+    const res = runScript(repo, 'install.sh', ['common'], piDir, { ECC_SKIP_UPSTREAM: '' });
+    assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+    assert.ok(/WARN.*invalid file/.test(res.stdout), `${bad}: ${res.stdout}`);
+    assert.ok(!res.stdout.includes('fetch failed'), `${bad} must be rejected before fetching`);
+  }
+});
+
+fetchTest('a non-SHA or option-like ref, or an option-like repo, is skipped with a WARN before any fetch', () => {
+  const repo = buildRepo();
+  const bare = path.join(os.tmpdir(), 'ecc-pi-none.git');
+  const cases = [
+    { repo: bare, ref: 'main', what: /invalid ref/ },
+    { repo: bare, ref: '--upload-pack=touch /tmp/ecc-pwned', what: /invalid ref/ },
+    { repo: bare, ref: 'A'.repeat(40), what: /invalid ref/ },
+    { repo: '--upload-pack=x', ref: 'a'.repeat(40), what: /invalid repo/ }
+  ];
+  for (const c of cases) {
+    writeUpstreamJson(repo, { name: 'subagent', repo: c.repo, ref: c.ref, path: 'x', files: ['index.ts'] });
+    const piDir = mkDir('ecc-pi-dest-');
+    const res = runScript(repo, 'install.sh', ['common'], piDir, { ECC_SKIP_UPSTREAM: '' });
+    assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+    assert.ok(c.what.test(res.stdout), `${c.ref}: ${res.stdout}`);
+    assert.ok(!res.stdout.includes('fetch failed'), `${c.ref} must not reach git`);
+    assert.ok(!fs.existsSync(path.join(piDir, 'extensions', 'subagent')));
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Prune
 // ---------------------------------------------------------------------------
 test('-p prunes a prompt that was removed from content', () => {

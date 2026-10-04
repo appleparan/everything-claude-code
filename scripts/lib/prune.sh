@@ -43,6 +43,27 @@ installed_full_dest_set() {
     fi
 }
 
+# Like manifest_add, but for a dest this run did not leave identical to what
+# it installs (a skipped user file, an edited copy). It still counts as "this
+# run's dest" so it is never reported as an orphan, but it is not written to
+# the manifest, so a later -p can never delete it.
+MANIFEST_UNOWNED=()
+manifest_add_unowned() {
+    MANIFEST_ENTRIES+=("${1}"$'\t'"${2}")
+    MANIFEST_UNOWNED+=("${1}"$'\t'"${2}")
+}
+
+# Records a dest as managed only when it ended up byte-identical to what the
+# installer ships (after the copy step); dry runs record it unconditionally
+# so `-n -p` previews stay accurate.
+# $1=lang $2=relpath $3=source file/dir $4=installed dest.
+manifest_add_file() {
+    if $DRY_RUN || dest_same_file "$3" "$4"; then manifest_add "$1" "$2"; else manifest_add_unowned "$1" "$2"; fi
+}
+manifest_add_dir() {
+    if $DRY_RUN || dest_same_dir "$3" "$4"; then manifest_add "$1" "$2"; else manifest_add_unowned "$1" "$2"; fi
+}
+
 manifest_file_path() {
     echo "${1}/.ecc-manifest"
 }
@@ -104,12 +125,21 @@ manifest_write() {
         done <<< "$old_entries"
     fi
 
+    local entries_nl="" entry
+    if [[ ${#MANIFEST_ENTRIES[@]} -gt 0 ]]; then
+        for entry in "${MANIFEST_ENTRIES[@]}"; do
+            if [[ ${#MANIFEST_UNOWNED[@]} -gt 0 ]] \
+                && printf '%s\n' "${MANIFEST_UNOWNED[@]}" | grep -Fxq -- "$entry"; then
+                continue
+            fi
+            entries_nl="${entries_nl}${entry}"$'\n'
+        done
+    fi
+
     local body
     body=$(
         {
-            if [[ ${#MANIFEST_ENTRIES[@]} -gt 0 ]]; then
-                printf '%s\n' "${MANIFEST_ENTRIES[@]}"
-            fi
+            printf '%s' "$entries_nl"
             printf '%s' "$carried"
         } | grep -v '^$' | sort -u || true
     )

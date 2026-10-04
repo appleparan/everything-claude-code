@@ -46,6 +46,8 @@ log_info() { echo -e "  ${CYAN}INFO${NC}  $1"; }
 log_warn() { echo -e "  ${RED}WARN${NC}  $1"; }
 log_rm()       { echo -e "  ${RED}RM${NC}    $1"; }
 log_not_found() { echo -e "  ${YELLOW}MISS${NC}  $1 (not installed)"; }
+log_symlink() { echo -e "  ${RED}WARN${NC}  $1 (symlink, not overwritten)"; }
+log_keep() { echo -e "  ${YELLOW}SKIP${NC}  $1 (differs from the shipped version; kept)"; }
 
 jq_install_hint() {
     log_warn "Install jq: sudo apt install jq (Debian/Ubuntu), brew install jq (macOS), sudo dnf install jq (Fedora), sudo pacman -S jq (Arch)"
@@ -87,6 +89,14 @@ target_summary() {
 copy_file() {
     local src="$1" dest="$2" label_src="$3" label_dest="$4"
 
+    # Never write through a symlink, even with -f: the target may live
+    # outside the install dir (e.g. a user's git clone).
+    if [[ -L "$dest" ]]; then
+        log_symlink "$label_dest"
+        skipped=$((skipped + 1))
+        return
+    fi
+
     if $DRY_RUN; then
         log_dry "$label_src" "$label_dest"
         copied=$((copied + 1))
@@ -106,6 +116,12 @@ copy_file() {
 # Copy a single file with ${CLAUDE_PLUGIN_ROOT} substitution
 copy_file_subst() {
     local src="$1" dest="$2" label_src="$3" label_dest="$4"
+
+    if [[ -L "$dest" ]]; then
+        log_symlink "$label_dest"
+        skipped=$((skipped + 1))
+        return
+    fi
 
     if $DRY_RUN; then
         log_dry "$label_src" "$label_dest"
@@ -130,6 +146,12 @@ copy_file_subst() {
 copy_dir() {
     local src="$1" dest="$2" label_src="$3" label_dest="$4"
 
+    if [[ -L "$dest" ]]; then
+        log_symlink "$label_dest"
+        skipped=$((skipped + 1))
+        return
+    fi
+
     if $DRY_RUN; then
         log_dry "$label_src" "$label_dest"
         copied=$((copied + 1))
@@ -148,6 +170,16 @@ copy_dir() {
         log_copy "$label_src" "$label_dest"
         copied=$((copied + 1))
     fi
+}
+
+# True (0) iff regular file $2 (not a symlink) is byte-identical to $1.
+dest_same_file() {
+    [[ -f "$2" && ! -L "$2" ]] && cmp -s "$1" "$2"
+}
+
+# True (0) iff directory $2 (not a symlink) has exactly the files of $1.
+dest_same_dir() {
+    [[ -d "$2" && ! -L "$2" ]] && diff -r -q "$1" "$2" >/dev/null 2>&1
 }
 
 # Remove a single file
