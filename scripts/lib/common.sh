@@ -7,6 +7,7 @@ CONTENT_ROOT="${REPO_ROOT}/content"
 
 CLAUDE_DIR="${HOME}/.claude"
 CODEX_DIR="${CODEX_HOME:-${HOME}/.codex}"
+PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
 CATEGORIES=(agents skills commands rules)
 
 # Colors

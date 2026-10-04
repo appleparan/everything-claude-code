@@ -1,0 +1,19 @@
+{
+  "extensions": [
+    {
+      "name": "subagent",
+      "repo": "https://github.com/earendil-works/pi.git",
+      "ref": "200387122ca450d6387f033949423114a270b96c",
+      "path": "packages/coding-agent/examples/extensions/subagent",
+      "files": ["index.ts", "agents.ts"]
+    }
+  ],
+  "_comments": {
+    "purpose": "Extensions fetched from upstream repos at install time into extensions/<name>/ of the pi agent dir. Installed by scripts/lib/upstream-extensions.sh.",
+    "pinning": "Unlike external-skills.json (which tracks the default branch), every entry is pinned to a full commit SHA in 'ref', so an install is reproducible and upstream changes cannot alter what runs inside pi.",
+    "license": "The subagent example is MIT licensed (earendil-works/pi).",
+    "files": "Only the listed files are copied. The upstream sample agents/ and prompts/ are not installed: this repo ships its own worker and scout agents and prompt templates.",
+    "version_mismatch": "Extensions use pi's internal APIs. If the installed pi version no longer matches, bump 'ref' to a commit matching that version and re-run install with -f.",
+    "failure": "Missing git or jq, a network failure, or a missing listed file warns and skips that entry; the rest of the install continues."
+  }
+}
