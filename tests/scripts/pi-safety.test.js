@@ -117,5 +117,30 @@ test('ECC_SAFETY_HEADLESS=allow opts out of the headless block', () => {
   assert.strictEqual(headlessDecision({ ECC_SAFETY_HEADLESS: 'allow' }).block, false);
 });
 
+test('quoted +refspec is a force push', () => {
+  assert.strictEqual(classifyBash('git push origin "+main"').kind, 'destructive');
+  assert.strictEqual(classifyBash("git push origin '+main'").kind, 'destructive');
+});
+test('setting ECC_SAFETY_HEADLESS in a command is flagged', () => {
+  for (const c of ['ECC_SAFETY_HEADLESS=allow pi -p x', 'export ECC_SAFETY_HEADLESS=allow', 'env ECC_SAFETY_HEADLESS=allow pi']) {
+    assert.strictEqual(classifyBash(c).kind, 'destructive', c);
+  }
+});
+test('pathological option sequences classify in under 100 ms (no ReDoS)', () => {
+  const shapes = [
+    'git ' + '-c "a" '.repeat(200) + 'status',
+    'git ' + '--git-dir --a '.repeat(200) + 'status',
+    'git ' + '-C x '.repeat(200) + 'push',
+    'git ' + '--no-pager '.repeat(200) + 'x',
+    'git ' + "-c 'a b' ".repeat(200) + 'reset',
+    'git push ' + 'a '.repeat(2000),
+  ];
+  for (const c of shapes) {
+    const t = Date.now();
+    classifyBash(c);
+    assert.ok(Date.now() - t < 100, `${c.slice(0, 30)}... took ${Date.now() - t} ms`);
+  }
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

@@ -7,8 +7,11 @@ const SEG = '[^;&|\\n]*'; // stay inside one shell command segment
 // Global git options that may sit between `git` and the subcommand:
 // -C <path>, -c <k=v>, --git-dir/--work-tree/... (= or space form), and any
 // other --long flag such as --no-pager. Arguments may be quoted.
-const ARG = '(?:"[^"]*"|\'[^\']*\'|\\S+)';
-const GIT_OPT = `(?:-[Cc]\\s+${ARG}|--(?:git-dir|work-tree|namespace|exec-path|super-prefix|config-env)(?:=${ARG}|\\s+${ARG})|--[a-z][a-z-]*(?:=${ARG})?|-[pP])`;
+// The alternatives are disjoint (an option token starts differently in each,
+// and the generic --long form excludes the arg-taking names), so the
+// repetition cannot backtrack exponentially.
+const ARG = `(?:"[^"]*"|'[^']*'|[^\\s"']\\S*)`;
+const GIT_OPT = `(?:-[Cc]\\s+${ARG}|--(?:git-dir|work-tree|namespace|super-prefix|config-env)(?:=${ARG}|\\s+${ARG})|--(?!(?:git-dir|work-tree|namespace|super-prefix|config-env)(?![\\w-]))[a-z][a-z-]*(?:=${ARG})?|-[pP])`;
 const GIT = `\\bgit(?:\\s+${GIT_OPT})*\\s+`;
 
 // Quoted mentions (e.g. echo "--no-verify") are flagged too: this only asks
@@ -19,12 +22,14 @@ const DESTRUCTIVE = [
   [/\b(?:chmod|chown)\b.*777/, 'chmod/chown 777'],
   // --force-with-lease is deliberately allowed: it is the safe force push.
   // A refspec starting with + (git push origin +main) is a force push too.
-  [new RegExp(`${GIT}push\\b${SEG}\\s(?:--force(?![-\\w])|-[a-zA-Z]*f[a-zA-Z]*(?=\\s|$)|\\+\\S)`), 'git push --force'],
+  [new RegExp(`${GIT}push\\b${SEG}\\s(?:--force(?![-\\w])|-[a-zA-Z]*f[a-zA-Z]*(?=\\s|$)|["']?\\+\\S)`), 'git push --force'],
   [new RegExp(`${GIT}reset\\b${SEG}--hard\\b`), 'git reset --hard'],
   [new RegExp(`${GIT}clean\\b${SEG}\\s(?:--force\\b|-[a-zA-Z]*f)`), 'git clean -f'],
   [new RegExp(`${GIT}worktree\\s+remove\\b${SEG}\\s(?:--force\\b|-f\\b)`), 'git worktree remove --force'],
   [new RegExp(`${GIT}branch\\b${SEG}\\s-[a-zA-Z]*D`), 'git branch -D'],
   [/(?:^|[\s"'])--no-verify\b/, '--no-verify'],
+  // A parent must not launch an unguarded child (see headlessDecision).
+  [/\bECC_SAFETY_HEADLESS=/, 'ECC_SAFETY_HEADLESS override'],
 ];
 
 const PUSH = new RegExp(`${GIT}push\\b`);
