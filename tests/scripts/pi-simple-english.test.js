@@ -31,6 +31,9 @@ test('strips LF frontmatter', () => {
 test('strips CRLF frontmatter', () => {
   assert.strictEqual(stripFrontmatter('---\r\nname: x\r\n---\r\nBody\r\n'), 'Body\r\n');
 });
+test('strips frontmatter after a UTF-8 BOM', () => {
+  assert.strictEqual(stripFrontmatter('\uFEFF---\nname: x\n---\nBody\n'), 'Body\n');
+});
 test('no frontmatter is unchanged', () => {
   assert.strictEqual(stripFrontmatter('# Title\n---\nmore\n'), '# Title\n---\nmore\n');
 });

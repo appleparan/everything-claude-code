@@ -218,13 +218,7 @@ if [[ -d "$plugins_src_dir" ]]; then
         [[ -f "$f" ]] || continue
         name=$(basename "$f")
         dest="${OPENCODE_DIR}/plugins/${name}"
-        if [[ -L "$dest" ]]; then
-            log_keep "plugins/${name}"
-        elif [[ ! -e "$dest" ]] || dest_same_file "$f" "$dest"; then
-            remove_file "$dest" "plugins/${name}"
-        else
-            log_keep "plugins/${name}"
-        fi
+        remove_file_if_same "$f" "$dest" "plugins/${name}"
     done
 fi
 cleanup_empty_dir "${OPENCODE_DIR}/plugins" "plugins/"

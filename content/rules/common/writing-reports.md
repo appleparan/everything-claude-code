@@ -40,11 +40,11 @@ reports.
 ## Language: Plain English via the `simple-english` Skill
 
 Every document is written in plain English under the `simple-english`
-skill, which is active in every session on every harness without being
-named (Claude Code and Codex load it through the plugin's session hook;
-pi through the `simple-english` extension; OpenCode through the
-`simple-english` plugin). The skill governs wording; this rule governs
-structure.
+skill. Once installed, it is active in every session on every harness
+without being named: Claude Code and Codex load it through the plugin's
+session hook (Codex after a one-time `/hooks` trust), pi through the
+`simple-english` extension, OpenCode through the `simple-english`
+plugin. The skill governs wording; this rule governs structure.
 
 - Draft under its rules from the first line, not as a polish pass.
 - Run its check mode on the finished draft and fix what it flags.

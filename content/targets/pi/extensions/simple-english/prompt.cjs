@@ -21,8 +21,9 @@ const FALLBACK =
 
 /** Remove a leading YAML frontmatter block (LF or CRLF). */
 function stripFrontmatter(text) {
-  const match = /^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(text);
-  return match ? text.slice(match[0].length) : text;
+  const clean = text.replace(/^\uFEFF/, '');
+  const match = /^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(clean);
+  return match ? clean.slice(match[0].length) : clean;
 }
 
 /** Cut text to at most max characters. */

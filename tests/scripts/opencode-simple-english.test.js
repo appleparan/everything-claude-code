@@ -62,11 +62,22 @@ async function main() {
     assert.ok(!sys[0].includes('name: a'));
   });
 
+  await test('strips frontmatter after a UTF-8 BOM', async () => {
+    const sys = await run('\uFEFF---\nname: a\n---\nBody text\n');
+    assert.ok(sys[0].includes('Body text'));
+    assert.ok(!sys[0].includes('name: a'));
+  });
+
+  await test('strips frontmatter whose closing fence has trailing spaces', async () => {
+    const sys = await run('---\nname: a\n---  \nBody text\n');
+    assert.ok(sys[0].includes('Body text'));
+    assert.ok(!sys[0].includes('name: a'));
+  });
+
   await test('caps a huge body', async () => {
     const sys = await run(`---\nname: a\n---\n${'x'.repeat(50000)}\n`);
     assert.strictEqual(sys.length, 1);
-    assert.ok(sys[0].length <= MAX + sys[0].indexOf('xxx'), `length ${sys[0].length}`);
-    assert.ok(sys[0].length < 50000);
+    assert.ok(sys[0].length <= MAX, `length ${sys[0].length}`);
   });
 
   await test('uses the fallback text when SKILL.md is absent', async () => {

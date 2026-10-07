@@ -63,8 +63,9 @@ Applies to everything written for a human reader: PR/MR descriptions,
 design docs, debugging reports, change records, slides, and technical
 articles. Full guidance lives in the `writing-reports` rule.
 
-- **Plain English, always.** The `simple-english` skill is active in
-  every session on every harness without being named. Its rules
+- **Plain English, always.** Once installed, the `simple-english`
+  skill is active in every session on every harness without being
+  named (Codex: after a one-time `/hooks` trust). Its rules
   (short sentences, active voice, simple tenses, one word one meaning,
   condition before command, terms defined at first use) govern every
   document and reply; the points below govern structure.

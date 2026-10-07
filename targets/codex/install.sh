@@ -25,7 +25,9 @@ Install shared configuration into Codex (\$CODEX_HOME or ~/.codex):
                      (e.g. worker/explorer model overrides)
   plugins            Codex plugins from content/targets/codex/plugins.json, added with
                      'codex plugin add' (needs codex on PATH + network; set
-                     ECC_SKIP_CODEX_PLUGINS=1 to skip)
+                     ECC_SKIP_CODEX_PLUGINS=1 to skip). Each plugin added is
+                     recorded in .ecc-codex-plugins so uninstall removes only
+                     what this installer added.
   config.toml        [agents] defaults from content/targets/codex/config.toml always
                      merged (when uv is available); [mcp_servers.*] entries
                      merged only with -m (backup created before either write)
@@ -160,7 +162,10 @@ echo ""
 # Language-agnostic like external skills. Needs codex on PATH and network;
 # every failure warns and skips the entry so the rest of the install passes.
 plugins_src="${CONTENT_ROOT}/targets/codex/plugins.json"
-JQ_CODEX_PLUGINS='(.plugins // [])[] | [.name // "", .marketplace // "", .source // "", .replaces_skill // ""] | @tsv'
+JQ_CODEX_PLUGINS='(.plugins // [])[] | [.name // "", .marketplace // "", .source // "", .replaces_skill // ""] | map(tostring) | join("\u001f")'
+# Ownership record: one "<name>@<marketplace>\t<1|0>" line per plugin this
+# installer added (flag 1 = this install also added the marketplace).
+plugins_state="${CODEX_DIR}/.ecc-codex-plugins"
 if [[ -f "$plugins_src" ]]; then
     echo -e "${CYAN}[plugins]${NC}"
     if [[ "${ECC_SKIP_CODEX_PLUGINS:-}" == "1" ]]; then
@@ -169,7 +174,7 @@ if [[ -f "$plugins_src" ]]; then
         log_warn "jq not found; skipping codex plugins"
     else
         plugins_added=0
-        while IFS=$'\t' read -r p_name p_market p_source p_replaces; do
+        while IFS=$'\x1f' read -r p_name p_market p_source p_replaces; do
             [[ -n "$p_name" ]] || continue
             p_label="${p_source} (${p_name}@${p_market})"
             # Names become a plugin selector and a skills/ path: single safe segments only.
@@ -179,35 +184,68 @@ if [[ -f "$plugins_src" ]]; then
                     .|..|*/*|*'\'*) p_bad=true ;;
                 esac
             done
-            if [[ -z "$p_market" || -z "$p_source" || "$p_source" == -* ]]; then
+            if [[ -z "$p_name" || -z "$p_market" || -z "$p_source" || "$p_source" == -* ]]; then
                 p_bad=true
             fi
             if $p_bad; then
                 log_warn "plugins: invalid entry '${p_name}'; skipped"
                 continue
             fi
+            p_skill="${CODEX_DIR}/skills/${p_replaces}"
             if $DRY_RUN; then
-                log_dry "$p_label" "codex plugin add"
-                copied=$((copied + 1))
+                if command -v codex &>/dev/null; then
+                    log_dry "$p_label" "codex plugin add"
+                    copied=$((copied + 1))
+                else
+                    log_warn "codex not found; run by hand: codex plugin marketplace add ${p_source} && codex plugin add ${p_name}@${p_market}"
+                fi
+                if [[ -n "$p_replaces" && -d "$p_skill" && ! -L "$p_skill" && -f "${p_skill}/${EXTERNAL_MARKER}" ]]; then
+                    log_dry_rm "skills/${p_replaces}/"
+                fi
                 continue
             fi
             if ! command -v codex &>/dev/null; then
                 log_warn "codex not found; run by hand: codex plugin marketplace add ${p_source} && codex plugin add ${p_name}@${p_market}"
                 continue
             fi
-            if ! p_err=$(codex plugin marketplace add "$p_source" </dev/null 2>&1); then
+            # GIT_TERMINAL_PROMPT=0: a credential prompt must fail, not hang.
+            if ! p_err=$(GIT_TERMINAL_PROMPT=0 codex plugin marketplace add "$p_source" </dev/null 2>&1); then
                 log_warn "${p_label}: marketplace add failed ($(printf '%s\n' "$p_err" | tail -n 1)); skipped"
                 continue
             fi
-            if ! p_err=$(codex plugin add "${p_name}@${p_market}" </dev/null 2>&1); then
+            # "Marketplace `x` is already added" means the user had it first.
+            p_new_market=1
+            if printf '%s\n' "$p_err" | grep -q "already added"; then
+                p_new_market=0
+            fi
+            if ! p_err=$(GIT_TERMINAL_PROMPT=0 codex plugin add "${p_name}@${p_market}" </dev/null 2>&1); then
                 log_warn "${p_label}: plugin add failed ($(printf '%s\n' "$p_err" | tail -n 1)); skipped"
                 continue
             fi
             log_copy "$p_label" "codex plugin"
             copied=$((copied + 1))
             plugins_added=$((plugins_added + 1))
-            # The plugin now ships this skill: drop the external copy installed above.
-            p_skill="${CODEX_DIR}/skills/${p_replaces}"
+            # Record ownership (replace any line for this selector; a past
+            # install that added the marketplace keeps flag 1).
+            p_sel="${p_name}@${p_market}"
+            if [[ -L "$plugins_state" ]]; then
+                log_warn "${plugins_state} is a symlink; not recording ownership (uninstall will keep this plugin)"
+            else
+                p_prev=0
+                if [[ -f "$plugins_state" ]] && awk -F'\t' -v s="$p_sel" '$1 == s && $2 == "1" { f = 1 } END { exit !f }' "$plugins_state"; then
+                    p_prev=1
+                fi
+                [[ "$p_prev" == "1" ]] && p_new_market=1
+                if ! { mkdir -p "$CODEX_DIR" &&
+                    p_tmp=$(mktemp "${CODEX_DIR}/.ecc-codex-plugins.XXXXXX") &&
+                    { if [[ -f "$plugins_state" ]]; then awk -F'\t' -v s="$p_sel" '$1 != s' "$plugins_state"; fi
+                      printf '%s\t%s\n' "$p_sel" "$p_new_market"; } > "$p_tmp" &&
+                    mv "$p_tmp" "$plugins_state"; } 2>/dev/null; then
+                    log_warn "could not record ${p_sel} in ${plugins_state}; uninstall will keep this plugin"
+                fi
+            fi
+            # The plugin now ships this skill: drop the copy an older install left in
+            # skills/, which external-skills.json no longer installs for codex.
             if [[ -n "$p_replaces" && -d "$p_skill" && ! -L "$p_skill" && -f "${p_skill}/${EXTERNAL_MARKER}" ]]; then
                 rm -r "$p_skill"
                 log_info "skills/${p_replaces}/ removed: the plugin now provides this skill"

@@ -51,7 +51,15 @@ function makeStub(code) {
   const file = path.join(bin, 'codex');
   fs.writeFileSync(
     file,
-    `#!/usr/bin/env bash\necho "$@" >> "$CODEX_STUB_LOG"\n[ ${code} -ne 0 ] && echo "stub failure" >&2\nexit ${code}\n`
+    `#!/usr/bin/env bash
+echo "$@" >> "$CODEX_STUB_LOG"
+if [ ${code} -ne 0 ]; then echo "stub failure" >&2; exit ${code}; fi
+if [ "$1 $2 $3" = "plugin marketplace add" ]; then
+  if [ "$CODEX_STUB_MARKET" = "existing" ]; then echo "Marketplace \`simple-english\` is already added"
+  else echo "Added marketplace \`simple-english\`"; fi
+fi
+exit 0
+`
   );
   fs.chmodSync(file, 0o755);
   return bin;
@@ -91,6 +99,22 @@ function run(repoDir, script, args, { stub, pathOverride, env: extraEnv = {} } =
   });
   const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : [];
   return { res, calls, codexHome, out: res.stdout + res.stderr };
+}
+
+const STATE = '.ecc-codex-plugins';
+
+function homeWithState(content) {
+  const home = mkTmp('ecc-codex-plugins-home-');
+  if (content !== null) fs.writeFileSync(path.join(home, STATE), content);
+  return home;
+}
+
+function markedSkill(home) {
+  const dir = path.join(home, 'skills', 'simple-english');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), '# s\n');
+  fs.writeFileSync(path.join(dir, '.ecc-external'), 'repo\n');
+  return dir;
 }
 
 let passed = 0;
@@ -177,15 +201,151 @@ test('install removes an external skills/simple-english/ only when it has the ma
   assert.ok(fs.existsSync(path.join(skillB, 'SKILL.md')), 'unmarked skill must be kept');
 });
 
-test('uninstall removes the plugin then the marketplace', () => {
+test('install records ownership: flag 1 when it added the marketplace, 0 when it pre-existed', () => {
+  const repo = buildRepo([ENTRY]);
+  const stub = makeStub(0);
+  let r = run(repo, 'install.sh', ['common'], { stub });
+  assert.strictEqual(r.res.status, 0, r.out);
+  assert.strictEqual(
+    fs.readFileSync(path.join(r.codexHome, STATE), 'utf8'),
+    'simple-english@simple-english\t1\n'
+  );
+  r = run(repo, 'install.sh', ['common'], { stub, env: { CODEX_STUB_MARKET: 'existing' } });
+  assert.strictEqual(r.res.status, 0, r.out);
+  assert.strictEqual(
+    fs.readFileSync(path.join(r.codexHome, STATE), 'utf8'),
+    'simple-english@simple-english\t0\n'
+  );
+});
+
+test('install keeps flag 1 on a re-install and replaces (not duplicates) the line', () => {
+  const home = homeWithState('other@x\t0\nsimple-english@simple-english\t1\n');
+  const r = run(buildRepo([ENTRY]), 'install.sh', ['common'], {
+    stub: makeStub(0),
+    env: { CODEX_HOME: home, CODEX_STUB_MARKET: 'existing' }
+  });
+  assert.strictEqual(r.res.status, 0, r.out);
+  assert.strictEqual(
+    fs.readFileSync(path.join(home, STATE), 'utf8'),
+    'other@x\t0\nsimple-english@simple-english\t1\n'
+  );
+});
+
+test('install does not write through a symlinked state file', () => {
+  const home = mkTmp('ecc-codex-plugins-home-');
+  const target = path.join(mkTmp('ecc-codex-plugins-link-'), 'victim');
+  fs.writeFileSync(target, 'keep\n');
+  fs.symlinkSync(target, path.join(home, STATE));
+  const r = run(buildRepo([ENTRY]), 'install.sh', ['common'], {
+    stub: makeStub(0),
+    env: { CODEX_HOME: home }
+  });
+  assert.strictEqual(r.res.status, 0, r.out);
+  assert.strictEqual(fs.readFileSync(target, 'utf8'), 'keep\n');
+  assert.ok(/WARN.*symlink/.test(r.out), 'expected a symlink warning');
+});
+
+test('uninstall skips a plugin not in the state file and calls no codex', () => {
   const { res, calls, out } = run(buildRepo([ENTRY]), 'uninstall.sh', ['common'], {
     stub: makeStub(0)
+  });
+  assert.strictEqual(res.status, 0, out);
+  assert.deepStrictEqual(calls, []);
+  assert.ok(/SKIP.*codex plugin simple-english@simple-english/.test(out), out);
+});
+
+test('uninstall with flag 1 removes the plugin then the marketplace and deletes the state file', () => {
+  const home = homeWithState('simple-english@simple-english\t1\n');
+  const { res, calls, out } = run(buildRepo([ENTRY]), 'uninstall.sh', ['common'], {
+    stub: makeStub(0),
+    env: { CODEX_HOME: home }
   });
   assert.strictEqual(res.status, 0, out);
   assert.deepStrictEqual(calls, [
     'plugin remove simple-english@simple-english',
     'plugin marketplace remove simple-english'
   ]);
+  assert.ok(!fs.existsSync(path.join(home, STATE)), 'empty state file must be removed');
+});
+
+test('uninstall with flag 0 removes only the plugin and keeps other state lines', () => {
+  const home = homeWithState('simple-english@simple-english\t0\nother@x\t1\n');
+  const { res, calls, out } = run(buildRepo([ENTRY]), 'uninstall.sh', ['common'], {
+    stub: makeStub(0),
+    env: { CODEX_HOME: home }
+  });
+  assert.strictEqual(res.status, 0, out);
+  assert.deepStrictEqual(calls, ['plugin remove simple-english@simple-english']);
+  assert.strictEqual(fs.readFileSync(path.join(home, STATE), 'utf8'), 'other@x\t1\n');
+});
+
+test('uninstall removes a stale marked skills/simple-english/ and keeps an unmarked one', () => {
+  const repo = buildRepo([ENTRY]);
+  const stub = makeStub(0);
+  const homeA = mkTmp('ecc-codex-plugins-home-');
+  const skillA = markedSkill(homeA);
+  let r = run(repo, 'uninstall.sh', ['common'], { stub, env: { CODEX_HOME: homeA } });
+  assert.strictEqual(r.res.status, 0, r.out);
+  assert.ok(!fs.existsSync(skillA), 'marked stale skill must be removed');
+
+  const homeB = mkTmp('ecc-codex-plugins-home-');
+  const skillB = path.join(homeB, 'skills', 'simple-english');
+  fs.mkdirSync(skillB, { recursive: true });
+  fs.writeFileSync(path.join(skillB, 'SKILL.md'), '# mine\n');
+  r = run(repo, 'uninstall.sh', ['common'], { stub, env: { CODEX_HOME: homeB } });
+  assert.strictEqual(r.res.status, 0, r.out);
+  assert.ok(fs.existsSync(path.join(skillB, 'SKILL.md')), 'unmarked skill must be kept');
+});
+
+test('uninstall dry run calls nothing and keeps the state file', () => {
+  const home = homeWithState('simple-english@simple-english\t1\n');
+  const { res, calls, out } = run(buildRepo([ENTRY]), 'uninstall.sh', ['-n', 'common'], {
+    stub: makeStub(0),
+    env: { CODEX_HOME: home }
+  });
+  assert.strictEqual(res.status, 0, out);
+  assert.deepStrictEqual(calls, []);
+  assert.ok(out.includes('codex plugin simple-english@simple-english'));
+  assert.strictEqual(
+    fs.readFileSync(path.join(home, STATE), 'utf8'),
+    'simple-english@simple-english\t1\n'
+  );
+});
+
+test('uninstall with codex missing warns and keeps the state file', () => {
+  const home = homeWithState('simple-english@simple-english\t1\n');
+  const { res, out } = run(buildRepo([ENTRY]), 'uninstall.sh', ['common'], {
+    pathOverride: makeCodexlessBin(),
+    env: { CODEX_HOME: home }
+  });
+  assert.strictEqual(res.status, 0, out);
+  assert.ok(/WARN.*codex not found/.test(out), out);
+  assert.strictEqual(
+    fs.readFileSync(path.join(home, STATE), 'utf8'),
+    'simple-english@simple-english\t1\n'
+  );
+});
+
+test('install dry run with codex missing warns instead of listing the add', () => {
+  const { res, out } = run(buildRepo([ENTRY]), 'install.sh', ['-n', 'common'], {
+    pathOverride: makeCodexlessBin()
+  });
+  assert.strictEqual(res.status, 0, out);
+  assert.ok(/WARN.*codex not found/.test(out), out);
+  assert.ok(!/DRY.*codex plugin add/.test(out), 'must not list the add as planned');
+});
+
+test('install dry run lists the marked stale skill removal', () => {
+  const home = mkTmp('ecc-codex-plugins-home-');
+  const skill = markedSkill(home);
+  const { res, calls, out } = run(buildRepo([ENTRY]), 'install.sh', ['-n', 'common'], {
+    stub: makeStub(0),
+    env: { CODEX_HOME: home }
+  });
+  assert.strictEqual(res.status, 0, out);
+  assert.deepStrictEqual(calls, []);
+  assert.ok(/DRY.*skills\/simple-english\//.test(out), out);
+  assert.ok(fs.existsSync(skill), 'dry run must not delete');
 });
 
 test('without plugins.json install prints nothing about plugins and exits 0', () => {

@@ -8,9 +8,10 @@
     }
   ],
   "_comments": {
-    "usage": "Installed by targets/codex/install.sh via `codex plugin marketplace add <source>` then `codex plugin add <name>@<marketplace>`. Language-agnostic: installed on every install, like content/external-skills.json. Needs the codex CLI on PATH and network access; failures warn and skip the entry. uninstall.sh reverses both commands.",
+    "usage": "Installed by targets/codex/install.sh via `codex plugin marketplace add <source>` then `codex plugin add <name>@<marketplace>`. Language-agnostic: installed on every install, like content/external-skills.json. Needs the codex CLI on PATH and network access; failures warn and skip the entry. uninstall.sh reverses both commands, but only for plugins recorded in the ownership state file (see state_file).",
     "selector": "<name>@<marketplace> is the plugin selector. <marketplace> is the name inside the source repo's marketplace.json, and <source> is the GitHub owner/repo (or git URL) passed to `codex plugin marketplace add`.",
     "replaces_skill": "Optional. Names an external skill dir (see content/external-skills.json) that the plugin now provides. After a successful add, install removes skills/<replaces_skill>/ when it carries the .ecc-external marker, so the skill is not loaded twice.",
+    "state_file": "install.sh records each plugin it adds in $CODEX_HOME/.ecc-codex-plugins, one `<name>@<marketplace>\\t<1 if this install added the marketplace, else 0>` line per plugin. uninstall.sh removes only listed plugins (so a plugin the user installed by hand is kept) and removes the marketplace only when the flag is 1, then deletes the processed lines and the file when empty.",
     "trust": "Plugin hooks need a one-time trust: run /hooks inside the Codex TUI. Set ECC_SKIP_CODEX_PLUGINS=1 to skip this step (install and uninstall)."
   }
 }

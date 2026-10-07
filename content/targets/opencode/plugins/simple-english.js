@@ -23,14 +23,15 @@ const FALLBACK =
 
 function skillBody() {
   const raw = readFileSync(new URL('../skills/simple-english/SKILL.md', import.meta.url), 'utf8')
-  const body = raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim()
+  const text = raw.replace(/^\uFEFF/, '')
+  const body = text.replace(/^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '').trim()
   if (!body) throw new Error('empty skill body')
-  return body.slice(0, MAX_CHARS)
+  return body
 }
 
 function text() {
   try {
-    return HEADER + skillBody()
+    return (HEADER + skillBody()).slice(0, MAX_CHARS)
   } catch {
     return HEADER + FALLBACK
   }
