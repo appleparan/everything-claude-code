@@ -35,6 +35,7 @@ const NOTOOLS_MD = '---\nname: notools\ndescription: No tools line.\nmodel: sonn
 const WORKER_MD = '---\nname: worker\ndescription: w\ntools: read, bash\nmodel: sonnet\n---\n\nWork.\n';
 const SCOUT_MD = '---\nname: scout\ndescription: s\ntools: read, grep\nmodel: haiku\n---\n\nScout.\n';
 const SAFETY_TS = 'export default function () {}\n';
+const SIMPLE_TS = 'export default function () {}\n';
 
 function writeFixtureContent(dir, { commands = ['plan', 'extra'] } = {}) {
   const w = (rel, content) => {
@@ -54,6 +55,8 @@ function writeFixtureContent(dir, { commands = ['plan', 'extra'] } = {}) {
   w('content/targets/pi/agents/worker.md', WORKER_MD);
   w('content/targets/pi/agents/scout.md', SCOUT_MD);
   w('content/targets/pi/extensions/ecc-safety/index.ts', SAFETY_TS);
+  w('content/targets/pi/extensions/simple-english/index.ts', SIMPLE_TS);
+  w('content/targets/pi/extensions/simple-english/prompt.cjs', 'module.exports = {};\n');
 }
 
 const noModel = (md) => md.replace(/^model: .*\n/m, '');
@@ -141,6 +144,7 @@ test('dry-run lists every section and writes nothing', () => {
   assert.ok(res.stdout.includes('prompts/plan.md'), res.stdout);
   assert.ok(res.stdout.includes('agents/worker.md'), res.stdout);
   assert.ok(res.stdout.includes('extensions/ecc-safety/'), res.stdout);
+  assert.ok(res.stdout.includes('extensions/simple-english/'), res.stdout);
   assert.ok(!fs.existsSync(piDir), 'dry run must not create the pi dir');
 });
 
@@ -172,6 +176,10 @@ test('install creates AGENTS.md, rules, skills, prompts, agents, and extensions'
   assert.strictEqual(
     fs.readFileSync(path.join(piDir, 'extensions', 'ecc-safety', 'index.ts'), 'utf8'),
     SAFETY_TS
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(piDir, 'extensions', 'simple-english', 'index.ts'), 'utf8'),
+    SIMPLE_TS
   );
   assert.strictEqual(fs.readFileSync(path.join(piDir, 'agents', 'worker.md'), 'utf8'), noModel(WORKER_MD));
   assert.strictEqual(fs.readFileSync(path.join(piDir, 'agents', 'scout.md'), 'utf8'), noModel(SCOUT_MD));
@@ -299,7 +307,8 @@ test('uninstall removes installed items and leaves unrelated user files', () => 
     'agents/notools.md',
     'agents/worker.md',
     'agents/scout.md',
-    'extensions/ecc-safety'
+    'extensions/ecc-safety',
+    'extensions/simple-english'
   ]) {
     assert.ok(!fs.existsSync(path.join(piDir, gone)), `${gone} should be removed`);
   }
