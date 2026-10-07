@@ -11,7 +11,7 @@ target_is_available() {
 
 # shellcheck disable=SC2088
 target_description() {
-    echo "~/.codex (AGENTS.md, instructions, skills, MCP)"
+    echo "~/.codex (AGENTS.md, instructions, skills, plugins, MCP)"
 }
 
 target_display_name() {

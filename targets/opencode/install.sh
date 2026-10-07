@@ -28,6 +28,8 @@ Install shared configuration into OpenCode (\$OPENCODE_CONFIG_DIR, else
   agents/            Subagent definitions: shared agents converted to
                      OpenCode's format (no tools/model lines, mode: subagent,
                      read-only agents get permission denies)
+  plugins/           Plugins from content/targets/opencode/plugins (the
+                     simple-english plugin adds the skill to every turn)
   opencode.json      Ask-before rules for destructive shell commands
 
 Options:
@@ -87,7 +89,7 @@ echo -e "Installing: ${GREEN}${LANGUAGES[*]}${NC} → ${DEST_LABEL}/"
 echo ""
 
 $DRY_RUN || mkdir -p "$OPENCODE_DIR/instructions" "$OPENCODE_DIR/skills" \
-    "$OPENCODE_DIR/commands" "$OPENCODE_DIR/agents"
+    "$OPENCODE_DIR/commands" "$OPENCODE_DIR/agents" "$OPENCODE_DIR/plugins"
 
 # 1. Rules → instructions/
 echo -e "${CYAN}[instructions]${NC}"
@@ -163,6 +165,21 @@ echo ""
 
 # 3.5 External skills (language-agnostic, kept out of the prune manifest).
 install_external_skills "${OPENCODE_DIR}/skills" "skills" opencode
+
+# 3.6 Plugins → plugins/ (OpenCode loads *.js from here). Language-agnostic,
+# kept out of the prune manifest.
+echo -e "${CYAN}[plugins]${NC}"
+plugins_src_dir="${CONTENT_ROOT}/targets/opencode/plugins"
+if [[ -d "$plugins_src_dir" ]]; then
+    for f in "$plugins_src_dir"/*; do
+        [[ -f "$f" ]] || continue
+        name=$(basename "$f")
+        copy_file "$f" "${OPENCODE_DIR}/plugins/${name}" \
+            "content/targets/opencode/plugins/${name}" "plugins/${name}"
+        installed_unmanifested_add "plugins/${name}"
+    done
+fi
+echo ""
 
 # 4. Commands → commands/. OpenCode command files take the same `description`
 # frontmatter and $ARGUMENTS as the shared commands, so they copy as-is.

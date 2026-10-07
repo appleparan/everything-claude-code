@@ -25,6 +25,7 @@ Uninstall shared configuration from OpenCode (\$OPENCODE_CONFIG_DIR, else
                      content/external-skills.json
   commands/          Slash commands installed from the shared commands
   agents/            Shared agents converted for OpenCode
+  plugins/           Plugins shipped in content/targets/opencode/plugins
   opencode.json      Ask-before rules for destructive shell commands
 
 Only what install wrote is removed. Entries listed in .ecc-manifest are ours
@@ -208,6 +209,19 @@ for lang in "${LANGUAGES[@]}"; do
     done
 done
 cleanup_empty_dir "${OPENCODE_DIR}/agents" "agents/"
+echo ""
+
+echo -e "${CYAN}[plugins]${NC}"
+plugins_src_dir="${CONTENT_ROOT}/targets/opencode/plugins"
+if [[ -d "$plugins_src_dir" ]]; then
+    for f in "$plugins_src_dir"/*; do
+        [[ -f "$f" ]] || continue
+        name=$(basename "$f")
+        dest="${OPENCODE_DIR}/plugins/${name}"
+        remove_file_if_same "$f" "$dest" "plugins/${name}"
+    done
+fi
+cleanup_empty_dir "${OPENCODE_DIR}/plugins" "plugins/"
 echo ""
 
 $DRY_RUN || manifest_prune_missing "$OPENCODE_DIR"

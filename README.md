@@ -192,6 +192,7 @@ detected) installs into `$CODEX_HOME` or `~/.codex`:
 | `content/skills/**` | `~/.codex/skills/<name>/` (invoked via `$skill-name`, e.g. `$git-commit-msg`) |
 | `content/external-skills.json` | External skills shallow-cloned from their git repos into `~/.codex/skills/<name>/`. Each entry names a repo and the in-repo path of a directory containing `SKILL.md`. Language-agnostic (installed on every install, removed by uninstalling any language); entries are skipped with a warning when `git`/`jq` are missing, the clone fails, or the path has no `SKILL.md`. Existing skill dirs are only refreshed with `-f`. |
 | `content/targets/codex/agents/*.toml` | `~/.codex/agents/<role>.toml` — custom subagent roles (`worker` on gpt-5.6-terra, `explorer` on gpt-5.6-luna) that override Codex's built-in roles so subagents never inherit the parent model. Language-agnostic (installed on every install, removed by uninstalling any language); existing files are only refreshed with `-f`. |
+| `content/targets/codex/plugins.json` | Codex plugins installed with the `codex` CLI (`codex plugin marketplace add <source>` then `codex plugin add <name>@<marketplace>`): today the upstream `simple-english` plugin, whose SessionStart hook keeps the skill always on. Language-agnostic; needs `codex` on `PATH` and network, otherwise WARN with the commands to run by hand; `ECC_SKIP_CODEX_PLUGINS=1` skips it. The plugin provides the skill, so an older `skills/simple-english/` copy from `external-skills.json` is removed. Codex asks you to trust the hook once: run `/hooks` in the TUI. Uninstall runs `codex plugin remove` and `codex plugin marketplace remove`. |
 | `content/targets/codex/config.toml` | `[agents]` defaults (`default_subagent_model`) merged key-by-key into `~/.codex/config.toml`, with a timestamped backup; existing user keys win unless `-f`. Requires `uv`; if it's missing, the step is skipped with a warning. |
 | `content/mcp/servers.json` | Opt-in via `-m` (off by default): `[mcp_servers.*]` merged into `~/.codex/config.toml`, with a timestamped backup of the existing file. Only servers tagged with a matching `languages` entry (plus untagged/common servers) are merged for the languages being installed. Requires `uv`; if it's missing, the MCP step is skipped with a warning and the entries can be added manually. |
 
@@ -235,6 +236,7 @@ is loaded (Codex reads it automatically at session start).
 | `content/commands/**` | `prompts/*.md` (prompt templates) |
 | `content/agents/**` | `agents/*.md`, converted to pi tool names, plus `worker` and `scout` from `content/targets/pi/agents/` |
 | `content/targets/pi/extensions/ecc-safety/` | `extensions/ecc-safety/` |
+| `content/targets/pi/extensions/simple-english/` | `extensions/simple-english/` — injects the installed `simple-english` skill into the system prompt before every turn, so its rules are always on (the pi counterpart of the Claude plugin's SessionStart hook) |
 | `content/targets/pi/upstream-extensions.json` | `extensions/subagent/`, fetched with `git` |
 
 Install and uninstall:
@@ -275,6 +277,7 @@ else `$XDG_CONFIG_HOME/opencode`, else `~/.config/opencode`:
 | `content/skills/**`, `content/external-skills.json` | `skills/<name>/` |
 | `content/commands/**` | `commands/*.md` (copied as-is, run as `/<name>`) |
 | `content/agents/**` | `agents/*.md`, converted (see below) |
+| `content/targets/opencode/plugins/` | `plugins/*.js` — today `simple-english.js`, which appends the installed `simple-english` skill to the system prompt on every turn (`experimental.chat.system.transform`), so its rules are always on. Uninstall removes a plugin file only when it is still byte-identical to the shipped one. |
 | `content/targets/opencode/opencode.json` | `opencode.json` |
 
 Install and uninstall:
@@ -315,7 +318,8 @@ Limits to know:
 - The rules are a pattern list, not a security boundary. A `` !`cmd` `` line in
   a command template runs outside the permission check, so review commands
   you add or edit.
-- Not ported: hooks and plugins, the doc-file blocker, and MCP config.
+- Not ported: the per-language hooks, the doc-file blocker, and MCP config.
+  The only plugin shipped is `simple-english.js`.
 
 OpenCode is detected via `$OPENCODE_CONFIG_DIR`, an existing config directory,
 or an `opencode` binary on `PATH`.

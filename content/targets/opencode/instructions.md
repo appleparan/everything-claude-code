@@ -12,5 +12,8 @@
   config. Rules in your own `opencode.jsonc` load after it and take
   precedence. A `` !`cmd` `` line in a command template runs outside
   the permission check, so review such lines before running a command.
+- **Plain English**: the `simple-english` plugin in `plugins/` appends
+  the `simple-english` skill to the system prompt on every turn, so its
+  rules are always on. Load the skill itself for a check.
 - **Planning**: keep the plan and its status in
   `IMPLEMENTATION_PLAN.md`; the built-in `plan` agent is read-only.

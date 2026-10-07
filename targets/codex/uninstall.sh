@@ -19,6 +19,11 @@ Uninstall shared configuration from Codex (\$CODEX_HOME or ~/.codex):
   skills/            Skill folders (invoked via \$skill-name), plus external
                      skills tracked in content/external-skills.json
   agents/            Custom subagent roles from content/targets/codex/agents/
+  plugins            Codex plugins from content/targets/codex/plugins.json, removed with
+                     'codex plugin remove' (set ECC_SKIP_CODEX_PLUGINS=1 to skip).
+                     Only plugins listed in .ecc-codex-plugins (written by
+                     install.sh) are removed; the marketplace is removed only
+                     when install.sh added it too.
   config.toml        Left untouched (user state); manual-removal hints printed
 
 Options:
@@ -132,6 +137,91 @@ if [[ -d "$agents_src_dir" ]]; then
     done
 fi
 cleanup_empty_dir "${CODEX_DIR}/agents" "agents/"
+echo ""
+
+echo -e "${CYAN}[plugins]${NC}"
+plugins_src="${CONTENT_ROOT}/targets/codex/plugins.json"
+JQ_CODEX_PLUGINS='(.plugins // [])[] | [.name // "", .marketplace // "", .replaces_skill // ""] | map(tostring) | join("\u001f")'
+plugins_state="${CODEX_DIR}/.ecc-codex-plugins"
+if [[ -f "$plugins_src" ]]; then
+    if [[ "${ECC_SKIP_CODEX_PLUGINS:-}" == "1" ]]; then
+        log_info "codex plugins skipped (ECC_SKIP_CODEX_PLUGINS=1)"
+    elif ! command -v jq &>/dev/null; then
+        log_info "jq not found; run codex plugin remove for the entries in plugins.json manually"
+    else
+        # Selectors whose state lines were processed; dropped from the state file at the end.
+        done_sels=""
+        while IFS=$'\x1f' read -r p_name p_market p_replaces; do
+            [[ -n "$p_name" ]] || continue
+            p_label="codex plugin ${p_name}@${p_market}"
+            p_bad=false
+            for p_seg in "$p_name" "$p_market"; do
+                case "$p_seg" in
+                    ''|.|..|*/*|*'\'*) p_bad=true ;;
+                esac
+            done
+            case "$p_replaces" in
+                .|..|*/*|*'\'*) p_bad=true ;;
+            esac
+            if $p_bad; then
+                log_warn "plugins: invalid entry '${p_name}'; skipped"
+                continue
+            fi
+            # Stale copy an older install left in skills/ (real dir with the marker only).
+            if [[ -n "$p_replaces" ]]; then
+                p_skill="${CODEX_DIR}/skills/${p_replaces}"
+                if [[ -d "$p_skill" && ! -L "$p_skill" && -f "${p_skill}/${EXTERNAL_MARKER}" ]]; then
+                    remove_dir "$p_skill" "skills/${p_replaces}/"
+                fi
+            fi
+            p_sel="${p_name}@${p_market}"
+            p_flag=""
+            if [[ -f "$plugins_state" && ! -L "$plugins_state" ]]; then
+                p_flag=$(awk -F'\t' -v s="$p_sel" '$1 == s { print $2; exit }' "$plugins_state")
+            fi
+            if [[ -z "$p_flag" ]]; then
+                log_keep "$p_label"
+                continue
+            fi
+            if $DRY_RUN; then
+                log_dry_rm "$p_label"
+                removed=$((removed + 1))
+                continue
+            fi
+            if ! command -v codex &>/dev/null; then
+                log_warn "codex not found; run by hand: codex plugin remove ${p_sel}$([[ "$p_flag" == "1" ]] && printf ' && codex plugin marketplace remove %s' "$p_market")"
+                continue
+            fi
+            if ! codex plugin remove "$p_sel" </dev/null >/dev/null 2>&1; then
+                log_warn "${p_label}: remove failed or not installed"
+                not_found=$((not_found + 1))
+                continue
+            fi
+            if [[ "$p_flag" == "1" ]]; then
+                if ! codex plugin marketplace remove "$p_market" </dev/null >/dev/null 2>&1; then
+                    log_warn "marketplace ${p_market}: remove failed; run: codex plugin marketplace remove ${p_market}"
+                fi
+            fi
+            log_rm "$p_label"
+            removed=$((removed + 1))
+            done_sels="${done_sels}${p_sel}"$'\n'
+        done < <(jq -r "$JQ_CODEX_PLUGINS" "$plugins_src")
+        # Drop processed lines; delete the state file when nothing is left.
+        if [[ -n "$done_sels" && -f "$plugins_state" && ! -L "$plugins_state" ]] && ! $DRY_RUN; then
+            p_tmp=$(mktemp "${CODEX_DIR}/.ecc-codex-plugins.XXXXXX")
+            if printf '%s' "$done_sels" | awk -F'\t' 'NR == FNR { if ($0 != "") d[$0] = 1; next } !($1 in d)' - "$plugins_state" > "$p_tmp"; then
+                if [[ -s "$p_tmp" ]]; then
+                    mv "$p_tmp" "$plugins_state"
+                else
+                    rm -f "$p_tmp" "$plugins_state"
+                fi
+            else
+                rm -f "$p_tmp"
+                log_warn "could not update ${plugins_state}"
+            fi
+        fi
+    fi
+fi
 echo ""
 
 echo -e "${CYAN}[config]${NC}"

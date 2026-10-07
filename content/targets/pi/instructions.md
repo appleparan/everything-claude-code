@@ -13,5 +13,8 @@ the extensions, agents, prompts, and skills installed in the pi agent directory 
   sandbox. The `ecc-safety` extension asks before destructive bash
   commands and blocks stray `.md`/`.txt` files. It is a pattern list,
   not a boundary: the Safety rules above still apply in full.
+- **Plain English**: the `simple-english` extension injects the
+  `simple-english` skill into the system prompt before every turn, so
+  its rules are always on. Run `/skill:simple-english` for a check.
 - **Planning**: pi has no plan mode or todo tool. Keep the plan and its
   status in `IMPLEMENTATION_PLAN.md`.
