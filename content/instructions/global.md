@@ -27,8 +27,8 @@ of guessing.
 
 - All work happens on a branch (`<type>/<short-description>`; types:
   feat, fix, refactor, docs, test, chore, perf, ci) in a git worktree
-  under `.claude/` — never edit the main checkout directly. Parallel
-  sessions without isolation cause conflicts.
+  under `.claude/worktrees/` — never edit the main checkout directly.
+  Parallel sessions without isolation cause conflicts.
 - Pull/rebase `origin/main` before starting doc or code work.
 - Commit at the end of every meaningful stage, not all at once at the
   end.

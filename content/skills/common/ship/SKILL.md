@@ -1,6 +1,6 @@
 ---
 name: ship
-description: End-to-end delivery workflow — plan the work, open a GitHub issue, create a worktree under .claude/, implement with TDD, make staged commits, run the project quality gate, open a PR from the worktree branch, then await merge before safe cleanup. When no forge CLI (gh/glab) is available, falls back to a local record mode using Change trailers and docs/changes/ documents. Use when the user asks to "ship" a feature/fix or wants the full deliver-to-PR flow.
+description: End-to-end delivery workflow — plan the work, open a GitHub issue, create a worktree under .claude/worktrees/, implement with TDD, make staged commits, run the project quality gate, open a PR from the worktree branch, then await merge before safe cleanup. When no forge CLI (gh/glab) is available, falls back to a local record mode using Change trailers and docs/changes/ documents. Use when the user asks to "ship" a feature/fix or wants the full deliver-to-PR flow.
 ---
 
 # Ship
@@ -70,7 +70,7 @@ Local record mode:
   (zero-padded to 4 digits; `CH-0001` if the directory does not exist yet).
 - Use it as `CHANGE` (e.g. `CH-0007`) everywhere `ISSUE` would be used.
 
-### 3. Create a branch and worktree under `.claude/`
+### 3. Create a branch and worktree under `.claude/worktrees/`
 
 Worktree is **always required**, even for Simple changes.
 
