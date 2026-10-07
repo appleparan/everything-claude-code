@@ -1,0 +1,16 @@
+{
+  "plugins": [
+    {
+      "name": "simple-english",
+      "marketplace": "simple-english",
+      "source": "AminBlg/SimpleEnglish",
+      "replaces_skill": "simple-english"
+    }
+  ],
+  "_comments": {
+    "usage": "Installed by targets/codex/install.sh via `codex plugin marketplace add <source>` then `codex plugin add <name>@<marketplace>`. Language-agnostic: installed on every install, like content/external-skills.json. Needs the codex CLI on PATH and network access; failures warn and skip the entry. uninstall.sh reverses both commands.",
+    "selector": "<name>@<marketplace> is the plugin selector. <marketplace> is the name inside the source repo's marketplace.json, and <source> is the GitHub owner/repo (or git URL) passed to `codex plugin marketplace add`.",
+    "replaces_skill": "Optional. Names an external skill dir (see content/external-skills.json) that the plugin now provides. After a successful add, install removes skills/<replaces_skill>/ when it carries the .ecc-external marker, so the skill is not loaded twice.",
+    "trust": "Plugin hooks need a one-time trust: run /hooks inside the Codex TUI. Set ECC_SKIP_CODEX_PLUGINS=1 to skip this step (install and uninstall)."
+  }
+}

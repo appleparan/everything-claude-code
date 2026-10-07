@@ -23,6 +23,9 @@ Install shared configuration into Codex (\$CODEX_HOME or ~/.codex):
                      skills tracked in content/external-skills.json
   agents/            Custom subagent roles from content/targets/codex/agents/
                      (e.g. worker/explorer model overrides)
+  plugins            Codex plugins from content/targets/codex/plugins.json, added with
+                     'codex plugin add' (needs codex on PATH + network; set
+                     ECC_SKIP_CODEX_PLUGINS=1 to skip)
   config.toml        [agents] defaults from content/targets/codex/config.toml always
                      merged (when uv is available); [mcp_servers.*] entries
                      merged only with -m (backup created before either write)
@@ -152,6 +155,70 @@ if [[ -d "$agents_src_dir" ]]; then
     done
 fi
 echo ""
+
+# 3.7 Plugins, added with the codex CLI from content/targets/codex/plugins.json.
+# Language-agnostic like external skills. Needs codex on PATH and network;
+# every failure warns and skips the entry so the rest of the install passes.
+plugins_src="${CONTENT_ROOT}/targets/codex/plugins.json"
+JQ_CODEX_PLUGINS='(.plugins // [])[] | [.name // "", .marketplace // "", .source // "", .replaces_skill // ""] | @tsv'
+if [[ -f "$plugins_src" ]]; then
+    echo -e "${CYAN}[plugins]${NC}"
+    if [[ "${ECC_SKIP_CODEX_PLUGINS:-}" == "1" ]]; then
+        log_info "codex plugins skipped (ECC_SKIP_CODEX_PLUGINS=1)"
+    elif ! command -v jq &>/dev/null; then
+        log_warn "jq not found; skipping codex plugins"
+    else
+        plugins_added=0
+        while IFS=$'\t' read -r p_name p_market p_source p_replaces; do
+            [[ -n "$p_name" ]] || continue
+            p_label="${p_source} (${p_name}@${p_market})"
+            # Names become a plugin selector and a skills/ path: single safe segments only.
+            p_bad=false
+            for p_seg in "$p_name" "$p_market" "$p_replaces"; do
+                case "$p_seg" in
+                    .|..|*/*|*'\'*) p_bad=true ;;
+                esac
+            done
+            if [[ -z "$p_market" || -z "$p_source" || "$p_source" == -* ]]; then
+                p_bad=true
+            fi
+            if $p_bad; then
+                log_warn "plugins: invalid entry '${p_name}'; skipped"
+                continue
+            fi
+            if $DRY_RUN; then
+                log_dry "$p_label" "codex plugin add"
+                copied=$((copied + 1))
+                continue
+            fi
+            if ! command -v codex &>/dev/null; then
+                log_warn "codex not found; run by hand: codex plugin marketplace add ${p_source} && codex plugin add ${p_name}@${p_market}"
+                continue
+            fi
+            if ! p_err=$(codex plugin marketplace add "$p_source" </dev/null 2>&1); then
+                log_warn "${p_label}: marketplace add failed ($(printf '%s\n' "$p_err" | tail -n 1)); skipped"
+                continue
+            fi
+            if ! p_err=$(codex plugin add "${p_name}@${p_market}" </dev/null 2>&1); then
+                log_warn "${p_label}: plugin add failed ($(printf '%s\n' "$p_err" | tail -n 1)); skipped"
+                continue
+            fi
+            log_copy "$p_label" "codex plugin"
+            copied=$((copied + 1))
+            plugins_added=$((plugins_added + 1))
+            # The plugin now ships this skill: drop the external copy installed above.
+            p_skill="${CODEX_DIR}/skills/${p_replaces}"
+            if [[ -n "$p_replaces" && -d "$p_skill" && ! -L "$p_skill" && -f "${p_skill}/${EXTERNAL_MARKER}" ]]; then
+                rm -r "$p_skill"
+                log_info "skills/${p_replaces}/ removed: the plugin now provides this skill"
+            fi
+        done < <(jq -r "$JQ_CODEX_PLUGINS" "$plugins_src")
+        if [[ "$plugins_added" -gt 0 ]]; then
+            log_info "plugin hooks need a one-time trust: run /hooks inside Codex"
+        fi
+    fi
+    echo ""
+fi
 
 # 4. [agents] defaults → config.toml. Always merged when uv is available;
 # this is independent of -m (MERGE_MCP only gates the [mcp] step below).

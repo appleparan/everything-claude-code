@@ -19,6 +19,8 @@ Uninstall shared configuration from Codex (\$CODEX_HOME or ~/.codex):
   skills/            Skill folders (invoked via \$skill-name), plus external
                      skills tracked in content/external-skills.json
   agents/            Custom subagent roles from content/targets/codex/agents/
+  plugins            Codex plugins from content/targets/codex/plugins.json, removed with
+                     'codex plugin remove' (set ECC_SKIP_CODEX_PLUGINS=1 to skip)
   config.toml        Left untouched (user state); manual-removal hints printed
 
 Options:
@@ -132,6 +134,52 @@ if [[ -d "$agents_src_dir" ]]; then
     done
 fi
 cleanup_empty_dir "${CODEX_DIR}/agents" "agents/"
+echo ""
+
+echo -e "${CYAN}[plugins]${NC}"
+plugins_src="${CONTENT_ROOT}/targets/codex/plugins.json"
+JQ_CODEX_PLUGINS='(.plugins // [])[] | [.name // "", .marketplace // ""] | @tsv'
+if [[ -f "$plugins_src" ]]; then
+    if [[ "${ECC_SKIP_CODEX_PLUGINS:-}" == "1" ]]; then
+        log_info "codex plugins skipped (ECC_SKIP_CODEX_PLUGINS=1)"
+    elif ! command -v jq &>/dev/null; then
+        log_info "jq not found; run codex plugin remove for the entries in plugins.json manually"
+    else
+        while IFS=$'\t' read -r p_name p_market; do
+            [[ -n "$p_name" ]] || continue
+            p_label="codex plugin ${p_name}@${p_market}"
+            p_bad=false
+            for p_seg in "$p_name" "$p_market"; do
+                case "$p_seg" in
+                    ''|.|..|*/*|*'\'*) p_bad=true ;;
+                esac
+            done
+            if $p_bad; then
+                log_warn "plugins: invalid entry '${p_name}'; skipped"
+                continue
+            fi
+            if $DRY_RUN; then
+                log_dry_rm "$p_label"
+                removed=$((removed + 1))
+                continue
+            fi
+            if ! command -v codex &>/dev/null; then
+                log_warn "codex not found; run by hand: codex plugin remove ${p_name}@${p_market} && codex plugin marketplace remove ${p_market}"
+                continue
+            fi
+            if ! codex plugin remove "${p_name}@${p_market}" </dev/null >/dev/null 2>&1; then
+                log_warn "${p_label}: remove failed or not installed"
+                not_found=$((not_found + 1))
+                continue
+            fi
+            if ! codex plugin marketplace remove "$p_market" </dev/null >/dev/null 2>&1; then
+                log_warn "marketplace ${p_market}: remove failed; run: codex plugin marketplace remove ${p_market}"
+            fi
+            log_rm "$p_label"
+            removed=$((removed + 1))
+        done < <(jq -r "$JQ_CODEX_PLUGINS" "$plugins_src")
+    fi
+fi
 echo ""
 
 echo -e "${CYAN}[config]${NC}"
