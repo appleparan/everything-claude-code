@@ -11,7 +11,7 @@ target_is_available() {
 
 # shellcheck disable=SC2088
 target_description() {
-    echo "~/.config/opencode (AGENTS.md, instructions, skills, commands, agents, opencode.json)"
+    echo "~/.config/opencode (AGENTS.md, instructions, skills, commands, agents, plugins, opencode.json)"
 }
 
 # Label for the config dir in messages and the AGENTS.md rules index: the

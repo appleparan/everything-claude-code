@@ -35,6 +35,7 @@ const NOTOOLS_MD = '---\nname: notools\ndescription: No tools line.\nmodel: sonn
 const MODE_MD = '---\nname: moded\ndescription: Has a mode.\nmode: primary\ntools: ["Read", "Write", "Bash"]\n---\n\nBody.\n';
 
 const realJson = fs.readFileSync(path.join(repoRoot, 'content/targets/opencode/opencode.json'), 'utf8');
+const realPlugin = fs.readFileSync(path.join(repoRoot, 'content/targets/opencode/plugins/simple-english.js'), 'utf8');
 
 function writeFixtureContent(dir, { commands = ['plan', 'extra'] } = {}) {
   const w = (rel, content) => {
@@ -52,6 +53,7 @@ function writeFixtureContent(dir, { commands = ['plan', 'extra'] } = {}) {
   for (const [n, md] of Object.entries(agents)) w(`content/agents/common/${n}.md`, md);
   w('content/targets/opencode/instructions.md', '## Harness: OpenCode\n\nAddendum.\n');
   w('content/targets/opencode/opencode.json', realJson);
+  w('content/targets/opencode/plugins/simple-english.js', realPlugin);
 }
 
 function buildRepo(opts) {
@@ -111,11 +113,12 @@ test('dry-run lists every section and writes nothing', () => {
   const ocDir = path.join(mkDir('ecc-oc-dest-'), 'opencode');
   const res = runScript(repo, 'install.sh', ['-n', 'common'], ocDir);
   assert.strictEqual(res.status, 0, res.stderr + res.stdout);
-  for (const section of ['[instructions]', '[global]', '[skills]', '[commands]', '[agents]']) {
+  for (const section of ['[instructions]', '[global]', '[skills]', '[commands]', '[agents]', '[plugins]']) {
     assert.ok(res.stdout.includes(section), `missing ${section}: ${res.stdout}`);
   }
   assert.ok(res.stdout.includes('opencode.json'), res.stdout);
   assert.ok(res.stdout.includes('commands/plan.md'), res.stdout);
+  assert.ok(res.stdout.includes('plugins/simple-english.js'), res.stdout);
   assert.ok(!fs.existsSync(ocDir), 'dry run must not create the config dir');
 });
 
@@ -131,6 +134,7 @@ test('install creates AGENTS.md, rules, skills, commands, agents and opencode.js
   assert.ok(exists(ocDir, 'skills/example-skill/SKILL.md'));
   assert.strictEqual(read(ocDir, 'commands/plan.md'), read(repo, 'content/commands/common/plan.md'));
   assert.strictEqual(read(ocDir, 'opencode.json'), realJson);
+  assert.strictEqual(read(ocDir, 'plugins/simple-english.js'), realPlugin);
   for (const n of ['full', 'readonly', 'nobash', 'both', 'notools', 'moded']) {
     assert.ok(exists(ocDir, `agents/${n}.md`), n);
   }
@@ -515,7 +519,7 @@ test('uninstall removes installed items and keeps unrelated user files', () => {
 
   const res = runScript(repo, 'uninstall.sh', ['common'], ocDir);
   assert.strictEqual(res.status, 0, res.stderr + res.stdout);
-  for (const rel of ['AGENTS.md', 'opencode.json', 'instructions', 'skills/example-skill', 'commands/plan.md', 'agents/full.md', 'agents/notools.md']) {
+  for (const rel of ['AGENTS.md', 'opencode.json', 'instructions', 'skills/example-skill', 'commands/plan.md', 'agents/full.md', 'agents/notools.md', 'plugins/simple-english.js', 'plugins']) {
     assert.ok(!exists(ocDir, rel), `${rel} should be gone`);
   }
   for (const rel of ['agents/mine.md', 'commands/mine.md', 'skills/my-skill/SKILL.md']) {
@@ -534,6 +538,19 @@ test('uninstall keeps a user-authored AGENTS.md and an edited unowned agent', ()
   assert.strictEqual(res.status, 0, res.stderr + res.stdout);
   assert.strictEqual(read(ocDir, 'AGENTS.md'), '# Mine\n');
   assert.strictEqual(read(ocDir, 'agents/full.md'), 'USER\n');
+});
+
+test('a user-edited plugin is kept by install without -f and by uninstall', () => {
+  const repo = buildRepo();
+  const ocDir = mkDir('ecc-oc-dest-');
+  fs.mkdirSync(path.join(ocDir, 'plugins'));
+  fs.writeFileSync(path.join(ocDir, 'plugins', 'simple-english.js'), 'USER\n');
+  const res = install(repo, ocDir);
+  assert.ok(res.stdout.includes('SKIP'), res.stdout);
+  assert.strictEqual(read(ocDir, 'plugins/simple-english.js'), 'USER\n');
+  const un = runScript(repo, 'uninstall.sh', ['common'], ocDir);
+  assert.strictEqual(un.status, 0, un.stderr + un.stdout);
+  assert.strictEqual(read(ocDir, 'plugins/simple-english.js'), 'USER\n');
 });
 
 test('uninstall dry-run removes nothing', () => {
