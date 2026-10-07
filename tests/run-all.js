@@ -32,8 +32,11 @@ const testFiles = [
   'scripts/codex-external-skills.test.js',
   'scripts/codex-agents.test.js',
   'scripts/pi-safety.test.js',
+  'scripts/pi-simple-english.test.js',
   'scripts/pi-target.test.js',
-  'scripts/opencode-target.test.js'
+  'scripts/opencode-target.test.js',
+  'scripts/opencode-simple-english.test.js',
+  'scripts/codex-plugins.test.js'
 ];
 
 const BOX_W = 58; // inner width between delimiters

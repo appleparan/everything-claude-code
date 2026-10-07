@@ -37,6 +37,20 @@ reports.
    least a line each on the strongest expected counterargument and on
    the conditions under which the approach does not apply.
 
+## Language: Plain English via the `simple-english` Skill
+
+Every document is written in plain English under the `simple-english`
+skill, which is active in every session on every harness without being
+named (Claude Code and Codex load it through the plugin's session hook;
+pi through the `simple-english` extension; OpenCode through the
+`simple-english` plugin). The skill governs wording; this rule governs
+structure.
+
+- Draft under its rules from the first line, not as a polish pass.
+- Run its check mode on the finished draft and fix what it flags.
+- Code, identifiers, commands, paths, quoted errors, and facts stay
+  untouched, as the skill itself requires.
+
 ## Structure: Conclusion First
 
 Order every report as a pyramid — each layer complete on its own, the
