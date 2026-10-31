@@ -92,6 +92,10 @@ articles. Full guidance lives in the `writing-reports` rule.
 - **Length is a defect.** A piece too long to read will not be read: cut
   anything that doesn't change the reader's decision, avoid filler
   adjectives, and put bulky detail behind a `<details>` block or a link.
+- **Items a reader scans are parallel.** In titles, list items, table
+  cells, and cards, start each item with its subject or verb, put the
+  words that tell it apart first, and give every item one structure.
+  Vary an item only when the difference means something.
 
 ## Quality Gate
 

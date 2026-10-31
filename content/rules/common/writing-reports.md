@@ -85,6 +85,24 @@ defect, not thoroughness.
 - Target: the whole report readable top-to-bottom in about a minute;
   a PR body's Summary section in ten seconds.
 
+## Scannable Items: One Pattern per List
+
+Readers skim lists, headings, table cells, commit subjects, and
+dashboard cards. They read only the first words of each item and
+expect every item to follow the same pattern
+([source](https://fsdatalab.github.io/blog/agent-text-at-scale/)).
+
+- Start each item with its subject or its verb. If every item has the
+  same subject, drop it and start with the verb, in one tense.
+- Put the words that make an item different from the others first:
+  `Failed: deploy to staging`, not `The deploy to staging failed`.
+- Give every item the same structure and the same set of parts. Use
+  one word for one concept across all items.
+- Vary length, structure, or detail only when the difference means
+  something. A detail that only one item has reads as a signal.
+- Pick verbs whose tone matches the purpose: "users complain" on a
+  problem list, "users like" on a praise list.
+
 ## Per Document Type
 
 - **PR/MR description**: Summary (TL;DR) → why / approach and key
