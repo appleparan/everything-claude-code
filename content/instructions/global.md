@@ -68,7 +68,8 @@ articles. Full guidance lives in the `writing-reports` rule.
   named (Codex: after a one-time `/hooks` trust). Its rules
   (short sentences, active voice, simple tenses, one word one meaning,
   condition before command, terms defined at first use) govern every
-  document and reply; the points below govern structure.
+  document and reply; the points below govern structure. The same
+  principles apply to documents in other languages, such as Korean.
 - **Audience and purpose first.** Fix who will read it and what they
   must decide before writing a line; the piece answers the questions
   that reader would ask.

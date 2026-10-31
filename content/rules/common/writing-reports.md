@@ -50,6 +50,9 @@ plugin. The skill governs wording; this rule governs structure.
 - Run its check mode on the finished draft and fix what it flags.
 - Code, identifiers, commands, paths, quoted errors, and facts stay
   untouched, as the skill itself requires.
+- For a document in another language, such as Korean, apply the same
+  principles: short sentences, active voice, one word for one concept,
+  condition before command, and terms defined at first use.
 
 ## Structure: Conclusion First
 
