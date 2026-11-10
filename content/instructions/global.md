@@ -10,7 +10,9 @@
 A subagent costs a fresh context, a lossy brief, and extra tokens.
 Delegate when the work is independent and can run in parallel, when it
 needs broad exploration across many files, or when you want a review
-that your own view does not anchor. Do small work with a known target
+that your own view does not anchor. When the harness can run a
+subagent on a cheaper model, well-specified implementation is also
+worth delegating for cost. Do small work with a known target
 yourself. Brief a subagent with the goal, the paths already ruled out,
 the files to read, and the scope. Planning and review stay with you.
 Which model a subagent runs on is set by the harness and its
