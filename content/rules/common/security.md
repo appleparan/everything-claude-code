@@ -2,27 +2,34 @@
 
 ## Mandatory Security Checks
 
-Before ANY commit:
+Before a commit, run the checks that apply:
+
+Every commit (a leaked secret stays in history):
+
 - [ ] No hardcoded secrets (API keys, passwords, tokens)
-- [ ] All user inputs validated
+- [ ] Error messages don't leak sensitive data
+
+When the change touches that surface (web endpoints, queries,
+templates, auth):
+
+- [ ] User inputs validated
 - [ ] SQL injection prevention (parameterized queries)
 - [ ] XSS prevention (sanitized HTML)
 - [ ] CSRF protection enabled
 - [ ] Authentication/authorization verified
-- [ ] Rate limiting on all endpoints
-- [ ] Error messages don't leak sensitive data
+- [ ] Rate limiting on endpoints
 
 ## Secret Management
 
-- NEVER hardcode secrets in source code
-- ALWAYS use environment variables or a secret manager
+- Do not hardcode secrets in source code
+- Use environment variables or a secret manager
 - Validate that required secrets are present at startup
 - Rotate any secrets that may have been exposed
 
 ## Security Response Protocol
 
 If security issue found:
-1. STOP immediately
+1. Stop the current change, so the issue does not ship further
 2. Use **security-reviewer** agent
 3. Fix CRITICAL issues before continuing
 4. Rotate any exposed secrets

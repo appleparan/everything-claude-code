@@ -1,6 +1,6 @@
 ---
 name: e2e-runner
-description: End-to-end testing specialist using Chrome DevTools MCP. Use PROACTIVELY for testing critical user flows via browser automation. Navigates pages, interacts with elements, captures screenshots, monitors network requests, and validates user journeys.
+description: End-to-end testing specialist using Chrome DevTools MCP. Use when testing critical user flows via browser automation. Navigates pages, interacts with elements, captures screenshots, monitors network requests, and validates user journeys.
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 model: sonnet
 ---

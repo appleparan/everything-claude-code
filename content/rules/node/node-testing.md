@@ -28,5 +28,5 @@ MANDATORY workflow:
 
 ## Agent Support
 
-- **tdd-guide** - Use PROACTIVELY for new features, enforces write-tests-first
+- **tdd-guide** - Use for new features; enforces write-tests-first
 - **e2e-runner** - Chrome DevTools MCP E2E testing specialist

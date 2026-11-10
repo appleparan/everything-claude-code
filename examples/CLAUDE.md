@@ -2,6 +2,15 @@
 
 This is an example project-level CLAUDE.md file. Place this in your project root.
 
+## Ownership (optional)
+
+This codebase is yours: what it's for and how it's built are your call, and you'll keep building on it.
+
+Include this only for code you own and want restructured. Leave it out
+when the user owns the code and wants minimal change, because a scope
+rule elsewhere does not cancel it. It raises output tokens about 1.5x
+and adds unrequested tests and docs.
+
 ## Project Overview
 
 [Brief description of your project - what it does, tech stack]

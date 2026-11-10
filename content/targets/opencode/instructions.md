@@ -1,9 +1,10 @@
 ## Harness: OpenCode
 
-- **Delegation**: hand implementation to the built-in `general`
-  subagent and read-only exploration to `explore`. Their model comes
-  from your OpenCode configuration. The agents in this setup's `agents/`
-  directory ship without a model, so they use the same configuration.
+- **Delegation**: for delegated implementation, use the built-in
+  `general` subagent; for delegated read-only exploration, use
+  `explore`. Their model comes from your OpenCode configuration. The
+  agents in this setup's `agents/` directory ship without a model, so
+  they use the same configuration.
 - **Skills and commands**: load a skill with the skill tool or
   `@<skill-id>`. The commands of this setup run as `/<name>`.
 - **Safety**: if this setup installed its `opencode.json`, OpenCode

@@ -1,6 +1,6 @@
 ---
 name: python-code-reviewer
-description: Expert Python code review specialist. Proactively reviews code for quality, security, and maintainability. Use immediately after writing or modifying Python code. MUST BE USED for all Python code changes.
+description: Expert Python code review specialist. Reviews code for quality, security, and maintainability. Use when Python code has been written or modified.
 tools: ["Read", "Grep", "Glob", "Bash"]
 model: opus
 ---
