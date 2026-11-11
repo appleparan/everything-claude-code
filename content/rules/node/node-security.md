@@ -2,24 +2,30 @@
 
 ## Mandatory Security Checks
 
-Before ANY commit:
+Before a commit, run the checks that apply:
+
+Every commit (a leaked secret stays in history):
 
 - [ ] No hardcoded secrets (API keys, passwords, tokens)
-- [ ] All user inputs validated
+- [ ] Error messages don't leak sensitive data
+
+When the change touches that surface (web endpoints, queries,
+templates, auth):
+
+- [ ] User inputs validated
 - [ ] SQL injection prevention (parameterized queries)
 - [ ] XSS prevention (sanitized HTML)
 - [ ] CSRF protection enabled
 - [ ] Authentication/authorization verified
-- [ ] Rate limiting on all endpoints
-- [ ] Error messages don't leak sensitive data
+- [ ] Rate limiting on endpoints
 
 ## Secret Management
 
 ```typescript
-// NEVER: Hardcoded secrets
+// Avoid: Hardcoded secrets
 const apiKey = "sk-xxxx-hardcoded"
 
-// ALWAYS: Environment variables
+// Prefer: Environment variables
 const apiKey = process.env.API_KEY
 
 if (!apiKey) {
@@ -31,7 +37,7 @@ if (!apiKey) {
 
 If security issue found:
 
-1. STOP immediately
+1. Stop the current change, so the issue does not ship further
 2. Use **security-reviewer** agent
 3. Fix CRITICAL issues before continuing
 4. Rotate any exposed secrets

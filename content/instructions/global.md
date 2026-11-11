@@ -7,11 +7,17 @@
 
 ## Delegation
 
-For coding tasks, hand implementation and exploration to subagents and
-keep planning and review for yourself. Which model a subagent runs on
-is set by the harness and its configuration, not by this file: the
-"Harness" section below says how to spawn one and whether it can use a
-cheaper model.
+A subagent costs a fresh context, a lossy brief, and extra tokens.
+Delegate when the work is independent and can run in parallel, when it
+needs broad exploration across many files, or when you want a review
+that your own view does not anchor. When the harness can run a
+subagent on a cheaper model, well-specified implementation is also
+worth delegating for cost. Do small work with a known target
+yourself. Brief a subagent with the goal, the paths already ruled out,
+the files to read, and the scope. Planning and review stay with you.
+Which model a subagent runs on is set by the harness and its
+configuration, not by this file: the "Harness" section below says how
+to spawn one and whether it can use a cheaper model.
 
 Tier mapping, for harnesses that name models explicitly, lives in the
 `performance` rule (Model Catalog).
@@ -68,8 +74,11 @@ articles. Full guidance lives in the `writing-reports` rule.
   named (Codex: after a one-time `/hooks` trust). Its rules
   (short sentences, active voice, simple tenses, one word one meaning,
   condition before command, terms defined at first use) govern every
-  document and reply; the points below govern structure. The same
-  principles apply to documents in other languages, such as Korean.
+  document and reply; the points below govern structure. Its
+  sentence-length numbers are targets, not hard caps: join closely
+  related steps or clauses when splitting them would make choppy
+  prose. The same principles apply to documents in other languages,
+  such as Korean.
 - **Audience and purpose first.** Fix who will read it and what they
   must decide before writing a line; the piece answers the questions
   that reader would ask.
@@ -116,8 +125,10 @@ fix.
 - Present causes only as hypothesis + verification method, never as
   conclusions.
 - Quote findings from logs/config verbatim with line numbers.
-- Prefer read-only verification commands (describe, logs, get); ask
-  before running anything that changes state.
+- Prefer read-only verification commands (describe, logs, get). Ask
+  before changing shared or external state: deploys, databases, cloud
+  resources, other people's systems, git history on shared branches.
+  Local builds, tests, and edits in the worktree need no approval.
 - To revisit a hypothesis the user has ruled out, present new
   evidence first.
 - Record ruled-out hypotheses with the evidence that eliminated them
@@ -132,12 +143,19 @@ fix.
 
 - Never include destructive commands (`rm -rf`,
   `git worktree remove --force`) in subagent prompts or automated
-  steps; confirm with the user before any cleanup or deletion.
-- Never bypass commit hooks (`--no-verify`), disable tests instead of
-  fixing them, or commit code that doesn't compile.
+  steps. Confirm with the user before deleting user data, worktrees,
+  branches, or files you did not create. Files you created this
+  session in scratch or temp directories need no confirmation.
+- Never bypass commit hooks (`--no-verify`; they run the checks
+  the project relies on), disable tests instead of fixing them, or commit code that
+  doesn't compile.
 
 ## When Stuck
 
-After 3 failed attempts, stop and report: what you tried and why it
-failed, plus 2–3 alternative approaches. Ask for direction before
-continuing.
+First work through ordinary obstacles: wait and retry, fix the
+request, or use another tool or source. After 3 failed attempts at the
+same approach, stop and report: what you tried and why it failed, plus
+2–3 alternative approaches. Ask for direction before continuing. Stop
+and ask at once at a deliberate blocker: a file marked not to be
+touched, access that was withheld on purpose, or a safety guardrail.
+Do not stop while you still owe work the user asked for.

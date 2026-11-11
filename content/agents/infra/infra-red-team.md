@@ -1,6 +1,6 @@
 ---
 name: infra-red-team
-description: Adversarially attacks infrastructure designs and debugging hypotheses from SPOF, cost, security, and day-2 operations perspectives. Use PROACTIVELY before finalizing an infra design or root-cause conclusion.
+description: Adversarially attacks infrastructure designs and debugging hypotheses from SPOF, cost, security, and day-2 operations perspectives. Use when about to finalize an infra design or root-cause conclusion.
 tools: ["Read", "Grep", "Glob"]
 model: opus
 ---

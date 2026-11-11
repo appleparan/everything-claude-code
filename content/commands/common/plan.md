@@ -1,5 +1,5 @@
 ---
-description: Restate requirements, assess risks, and create step-by-step implementation plan. WAIT for user CONFIRM before touching any code.
+description: Restate requirements, assess risks, and create step-by-step implementation plan. Wait for the user's go-ahead before writing or changing any code.
 ---
 
 # Plan Command
@@ -11,7 +11,7 @@ This command invokes the **planner** agent to create a comprehensive implementat
 1. **Restate Requirements** - Clarify what needs to be built
 2. **Identify Risks** - Surface potential issues and blockers
 3. **Create Step Plan** - Break down implementation into phases
-4. **Wait for Confirmation** - MUST receive user approval before proceeding
+4. **Wait for Confirmation** - get the user's go-ahead before writing or changing code (reading files needs none)
 
 ## When to Use
 
@@ -32,7 +32,7 @@ The planner agent will:
 3. **Identify dependencies** between components
 4. **Assess risks** and potential blockers
 5. **Estimate complexity** (High/Medium/Low)
-6. **Present the plan** and WAIT for your explicit confirmation
+6. **Present the plan** and wait for your explicit go-ahead before writing or changing code
 
 ## Example Usage
 
@@ -89,7 +89,7 @@ Agent (planner):
 - Testing: 2-3 hours
 - Total: 9-13 hours
 
-**WAITING FOR CONFIRMATION**: Proceed with this plan? (yes/no/modify)
+**Waiting for your go-ahead**: Proceed with this plan? (yes/no/modify)
 ```
 
 ## Important Notes

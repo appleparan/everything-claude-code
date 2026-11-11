@@ -44,7 +44,9 @@ skill. Once installed, it is active in every session on every harness
 without being named: Claude Code and Codex load it through the plugin's
 session hook (Codex after a one-time `/hooks` trust), pi through the
 `simple-english` extension, OpenCode through the `simple-english`
-plugin. The skill governs wording; this rule governs structure.
+plugin. The skill governs wording; this rule governs structure. Its
+sentence-length numbers are targets, not hard caps: join closely
+related steps or clauses when splitting them would make choppy prose.
 
 - Draft under its rules from the first line, not as a polish pass.
 - Run its check mode on the finished draft and fix what it flags.

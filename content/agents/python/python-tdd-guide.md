@@ -1,6 +1,6 @@
 ---
 name: python-tdd-guide
-description: Test-Driven Development specialist for Python projects enforcing write-tests-first methodology. Use PROACTIVELY when writing new features, fixing bugs, or refactoring Python code. Ensures 80%+ test coverage.
+description: Test-Driven Development specialist for Python projects enforcing write-tests-first methodology. Use when writing new features, fixing bugs, or refactoring Python code. Ensures 80%+ test coverage.
 tools: ["Read", "Write", "Edit", "Bash", "Grep"]
 model: opus
 ---

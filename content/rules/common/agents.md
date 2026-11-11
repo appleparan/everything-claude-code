@@ -34,7 +34,8 @@ with the parent model.
 
 ## When to Delegate
 
-Use an agent when the task genuinely benefits from a separate context:
+An agent costs a fresh context, a lossy brief, and extra tokens. Use
+one when the task genuinely benefits from a separate context:
 planner or architect for sizeable features and design decisions,
 code-reviewer after writing significant code, tdd-guide for new
 features and bug fixes, security-reviewer for security-sensitive
