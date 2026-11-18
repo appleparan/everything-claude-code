@@ -247,7 +247,6 @@ Install and uninstall:
 ```bash
 ./scripts/install.sh --target pi common python   # -n, -f, -p work as above
 ./scripts/uninstall.sh --target pi common python
-./scripts/uninstall.sh --target omp common python
 ECC_SKIP_UPSTREAM=1 ./scripts/install.sh --target pi common   # skip the fetch
 ```
 
@@ -377,6 +376,7 @@ or an `opencode` binary on `PATH`.
 ./scripts/uninstall.sh --target claude
 ./scripts/uninstall.sh --target codex
 ./scripts/uninstall.sh --target pi common python
+./scripts/uninstall.sh --target omp common python
 ./scripts/uninstall.sh --target opencode common python
 ```
 
