@@ -21,6 +21,8 @@ function run(args, envOverrides = {}) {
   };
   delete env.CODEX_HOME;
   delete env.PI_CODING_AGENT_DIR;
+  delete env.ECC_OMP_DIR;
+  delete env.PI_CONFIG_DIR;
   delete env.OPENCODE_CONFIG_DIR;
   delete env.XDG_CONFIG_HOME;
   Object.assign(env, envOverrides);
@@ -123,6 +125,8 @@ function runFake(dir, script, args) {
   const env = { ...process.env, PATH: '/usr/bin:/bin', HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-h-')) };
   delete env.CODEX_HOME;
   delete env.PI_CODING_AGENT_DIR;
+  delete env.ECC_OMP_DIR;
+  delete env.PI_CONFIG_DIR;
   delete env.OPENCODE_CONFIG_DIR;
   delete env.XDG_CONFIG_HOME;
   return spawnSync('bash', [path.join(dir, 'scripts', script), ...args], { env, encoding: 'utf8' });
@@ -139,10 +143,10 @@ test('unknown --target error lists every discovered target', () => {
   }
 });
 
-test('real unknown --target error lists claude, codex, pi and opencode', () => {
+test('real unknown --target error lists claude, codex, pi, omp and opencode', () => {
   const res = run(['-n', '--target', 'bogus', 'common']);
   const out = res.stdout + res.stderr;
-  assert.ok(out.includes('claude') && out.includes('codex') && out.includes('pi') && out.includes('opencode'), out);
+  assert.ok(out.includes('claude') && out.includes('codex') && out.includes('pi') && out.includes('omp') && out.includes('opencode'), out);
 });
 
 test('--target pi dry-run plans AGENTS.md, prompts, agents and extensions', () => {
@@ -179,6 +183,46 @@ test('uninstall --target pi dry-run plans removals', () => {
   const uninstallSh = path.join(repoRoot, 'scripts', 'uninstall.sh');
   const env = { ...process.env, HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-h-')), PI_CODING_AGENT_DIR: piDir, PATH: '/usr/bin:/bin' };
   const res = spawnSync('bash', [uninstallSh, '-n', '--target', 'pi', 'common'], { env, encoding: 'utf8' });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(res.stdout.includes('AGENTS.md'), res.stdout);
+});
+
+test('--target omp dry-run plans AGENTS.md, rules, commands, agents and extensions', () => {
+  const ompDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-omp-'));
+  const res = run(['-n', '--target', 'omp', 'common'], { ECC_OMP_DIR: ompDir });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  for (const s of ['AGENTS.md', '[rules]', '[commands]', '[agents]', 'extensions/ecc-safety/']) {
+    assert.ok(res.stdout.includes(s), `expected ${s}: ${res.stdout}`);
+  }
+  assert.ok(!res.stdout.includes('CLAUDE.md'));
+  assert.ok(!res.stdout.includes('extensions/subagent/'));
+});
+
+test('--target omp without omp fails', () => {
+  const res = run(['-n', '--target', 'omp', 'common']);
+  assert.notStrictEqual(res.status, 0);
+  assert.ok((res.stdout + res.stderr).includes('omp not detected'));
+});
+
+test('default target all skips omp with INFO when omp is absent', () => {
+  const res = run(['-n', 'common']);
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.ok(res.stdout.includes('omp not detected; skipping omp target'), res.stdout);
+});
+
+test('target all with -m installs omp when detected (-m ignored)', () => {
+  const ompDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-omp-'));
+  const res = run(['-n', '-m', '--target', 'all', 'common'], { ECC_OMP_DIR: ompDir });
+  assert.strictEqual(res.status, 0, res.stderr + res.stdout);
+  assert.ok(res.stdout.includes('[rules]'), res.stdout);
+});
+
+test('uninstall --target omp dry-run plans removals', () => {
+  const ompDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-omp-un-'));
+  const uninstallSh = path.join(repoRoot, 'scripts', 'uninstall.sh');
+  const env = { ...process.env, HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-h-')), ECC_OMP_DIR: ompDir, PATH: '/usr/bin:/bin' };
+  delete env.PI_CODING_AGENT_DIR;
+  const res = spawnSync('bash', [uninstallSh, '-n', '--target', 'omp', 'common'], { env, encoding: 'utf8' });
   assert.strictEqual(res.status, 0, res.stderr + res.stdout);
   assert.ok(res.stdout.includes('AGENTS.md'), res.stdout);
 });
