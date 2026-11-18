@@ -34,6 +34,8 @@ const testFiles = [
   'scripts/pi-safety.test.js',
   'scripts/pi-simple-english.test.js',
   'scripts/pi-target.test.js',
+  'scripts/omp-target.test.js',
+  'scripts/omp-simple-english.test.js',
   'scripts/opencode-target.test.js',
   'scripts/opencode-simple-english.test.js',
   'scripts/codex-plugins.test.js'
