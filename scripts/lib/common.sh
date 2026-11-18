@@ -8,6 +8,8 @@ CONTENT_ROOT="${REPO_ROOT}/content"
 CLAUDE_DIR="${HOME}/.claude"
 CODEX_DIR="${CODEX_HOME:-${HOME}/.codex}"
 PI_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+# ECC_OMP_DIR is this installer's own variable. omp itself reads PI_CODING_AGENT_DIR.
+OMP_DIR="${ECC_OMP_DIR:-${HOME}/${PI_CONFIG_DIR:-.omp}/agent}"
 OPENCODE_DIR="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/opencode}"
 CATEGORIES=(agents skills commands rules)
 
