@@ -57,8 +57,9 @@ pricing page before quoting it.
 
 Delegation is defined by role; the models below are how the Claude Code
 and Codex targets pin each role. Harnesses where the user picks the
-model in their own configuration (pi) ship agents without a model, so
-subagents inherit the parent's model and this table does not apply.
+model in their own configuration (pi, omp) ship agents without a model,
+so subagents use the model chosen in that harness and this table does
+not apply.
 
 | Role | Claude Code | Codex |
 |------|-------------|-------|

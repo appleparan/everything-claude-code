@@ -8,8 +8,8 @@
 
 A curated collection of Claude Code configurations — agents, skills, commands,
 rules, and hooks — installable per language into **Claude Code** (`~/.claude`),
-**Codex CLI** (`~/.codex`), **pi** (`~/.pi/agent`), and **OpenCode**
-(`~/.config/opencode`) from a single shared content tree.
+**Codex CLI** (`~/.codex`), **pi** (`~/.pi/agent`), **omp** (`~/.omp/agent`),
+and **OpenCode** (`~/.config/opencode`) from a single shared content tree.
 
 This is a fork of
 [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code),
@@ -23,6 +23,8 @@ restructured around a script-based, multi-target install flow:
   (`AGENTS.md`, instructions, skills, MCP servers).
 - **pi support**: the same content installs into `~/.pi/agent` (`AGENTS.md`,
   instructions, skills, prompts, subagents, a safety extension).
+- **omp support**: the same content installs into `~/.omp/agent` (`AGENTS.md`,
+  rules, skills, commands, subagents, a safety extension).
 - **OpenCode support**: the same content installs into `~/.config/opencode`
   (`AGENTS.md`, instructions, skills, commands, subagents, ask-before shell
   rules).
@@ -49,13 +51,14 @@ git clone https://github.com/appleparan/everything-claude-code.git
 cd everything-claude-code
 
 # Install common + python configs for every detected target
-# (Codex, pi and OpenCode are skipped automatically when not detected)
+# (Codex, pi, omp and OpenCode are skipped automatically when not detected)
 ./scripts/install.sh python common
 
 # One target only
 ./scripts/install.sh --target claude python common
 ./scripts/install.sh --target codex python common
 ./scripts/install.sh --target pi python common
+./scripts/install.sh --target omp python common
 ./scripts/install.sh --target opencode python common
 
 # Preview what would be installed, without writing anything
@@ -67,7 +70,7 @@ cd everything-claude-code
 
 `scripts/install.sh` is a thin `--target <name>|all` dispatcher (default `all`)
 over the targets discovered under `targets/*/target.sh` (today `claude`,
-`codex`, `pi`, and `opencode`), which all read from the single `content/` source tree. `all` runs
+`codex`, `pi`, `omp`, and `opencode`), which all read from the single `content/` source tree. `all` runs
 `claude` first, then every other target that reports itself available.
 
 Available languages: `common`, `infra`, `node`, `python`, `rust`, `typescript`.
@@ -78,11 +81,11 @@ Options (shared by install and uninstall):
 
 | Flag | Effect |
 |---|---|
-| `--target claude\|codex\|pi\|opencode\|all` | Which tool to install into (default `all`) |
+| `--target claude\|codex\|pi\|omp\|opencode\|all` | Which tool to install into (default `all`) |
 | `-n` | Dry run — show what would be copied without copying |
 | `-f` | Force-overwrite existing files (default is skip) |
 | `-p` | Prune orphaned files left by previous installs (see below) |
-| `-m` | Merge MCP servers from `content/mcp/servers.json` (off by default; install only; pi and OpenCode ignore it) |
+| `-m` | Merge MCP servers from `content/mcp/servers.json` (off by default; install only; pi, omp and OpenCode ignore it) |
 | `-l` | List available languages |
 | `-h` | Show help |
 
@@ -95,7 +98,7 @@ run install again.
 
 Every non-dry-run install writes `.ecc-manifest` next to the installed files
 (`~/.claude/.ecc-manifest`, `~/.codex/.ecc-manifest`,
-`~/.pi/agent/.ecc-manifest`, `~/.config/opencode/.ecc-manifest`), recording every
+`~/.pi/agent/.ecc-manifest`, `~/.omp/agent/.ecc-manifest`, `~/.config/opencode/.ecc-manifest`), recording every
 destination that install manages for the languages you selected. Content
 that's shared/merged (`CLAUDE.md`, `settings.json`, `AGENTS.md`,
 `config.toml`) is never tracked, so it's never a prune candidate.
@@ -244,6 +247,7 @@ Install and uninstall:
 ```bash
 ./scripts/install.sh --target pi common python   # -n, -f, -p work as above
 ./scripts/uninstall.sh --target pi common python
+./scripts/uninstall.sh --target omp common python
 ECC_SKIP_UPSTREAM=1 ./scripts/install.sh --target pi common   # skip the fetch
 ```
 
@@ -264,6 +268,48 @@ Three limits to know:
 
 pi is detected via `$PI_CODING_AGENT_DIR`, an existing `~/.pi` directory, or a
 `pi` binary on `PATH`.
+
+### omp support
+
+`./scripts/install.sh --target omp` installs into `$ECC_OMP_DIR` or
+`~/.omp/agent`:
+
+| content | destination |
+|---|---|
+| `content/instructions/global.md` + omp addendum + rules index | `AGENTS.md` (generated) |
+| `content/rules/**` | `rules/*.md` |
+| `content/skills/**`, `content/external-skills.json` | `skills/<name>/` (invoked via `/skill:name`) |
+| `content/commands/**` | `commands/*.md` (slash commands, run as `/name`) |
+| `content/agents/**` | `agents/*.md`, converted to omp tool names |
+| `content/targets/pi/extensions/ecc-safety/` | `extensions/ecc-safety/` (one source shared with pi) |
+| `content/targets/omp/extensions/simple-english/` | `extensions/simple-english/`. It adds the installed `simple-english` skill to the system prompt before every turn, so its rules are always on |
+
+Install and uninstall:
+
+```bash
+./scripts/install.sh --target omp common python   # -n, -f, -p work as above
+./scripts/uninstall.sh --target omp common python
+```
+
+Notes:
+
+- Detection uses `$ECC_OMP_DIR`, an existing `~/.omp` directory, or an `omp`
+  binary on `PATH`.
+- `ECC_OMP_DIR` is this installer's variable. omp itself also reads
+  `PI_CODING_AGENT_DIR`. When you set that variable, point `ECC_OMP_DIR` at the
+  directory omp really uses. Install prints a warning in that case.
+- Rules install to `rules/` as plain files. omp injects only rule files that
+  have a `description` or `alwaysApply` header, so the agent reaches these
+  files through the index in `AGENTS.md`.
+- Agents ship without `model:` lines, so subagents use the models configured
+  in omp. Shared agents named like an omp bundled agent (`scout`, `reviewer`,
+  `security-reviewer`, `seance`, `task`, `sonic`) are skipped, so they never
+  override the bundled one. The bundled `task` and `scout` agents replace the
+  pi `worker` and `scout` agents, and no `subagent` extension is installed.
+- The `ecc-safety` extension asks before destructive commands and blocks
+  unneeded `.md`/`.txt` writes, in addition to omp's own approval mode. It is a
+  pattern list, not a security boundary.
+- MCP config and per-language hooks are not ported to omp.
 
 ### OpenCode support
 
@@ -353,11 +399,11 @@ everything-claude-code/
 |-- content/          # Single source of truth (target-neutral, no install logic)
 |   |-- instructions/
 |   |   |-- global.md        # Harness-neutral instructions (-> CLAUDE.md / AGENTS.md, plus each target's addendum)
-|   |-- agents/               # Specialized subagents (Claude Code, pi, OpenCode)
+|   |-- agents/               # Specialized subagents (Claude Code, pi, omp, OpenCode)
 |   |   |-- common/, infra/, node/, python/, rust/, typescript/
-|   |-- skills/                # Workflow definitions (Claude Code, Codex, pi, OpenCode)
+|   |-- skills/                # Workflow definitions (Claude Code, Codex, pi, omp, OpenCode)
 |   |   |-- common/, node/, python/
-|   |-- commands/              # Slash commands (Claude Code; pi prompt templates; OpenCode commands)
+|   |-- commands/              # Slash commands (Claude Code; pi prompt templates; omp and OpenCode commands)
 |   |   |-- common/, infra/, node/, python/, rust/
 |   |-- rules/                 # Always-follow guidelines (all targets)
 |   |   |-- common/, infra/, node/, python/, rust/, typescript/
@@ -378,6 +424,9 @@ everything-claude-code/
 |           |-- agents/        # worker and scout subagents
 |           |-- extensions/ecc-safety/  # Destructive-command and doc-file guard
 |           |-- upstream-extensions.json  # Pinned upstream subagent extension
+|       |-- omp/
+|           |-- instructions.md  # Addendum appended to AGENTS.md
+|           |-- extensions/simple-english/  # Always-on plain-English extension
 |       |-- opencode/
 |           |-- instructions.md  # Addendum appended to AGENTS.md
 |           |-- opencode.json  # Ask-before shell rules -> ~/.config/opencode/opencode.json
@@ -397,6 +446,10 @@ everything-claude-code/
 |       |-- target.sh
 |       |-- install.sh        # content/* -> ~/.pi/agent/* (see pi support above)
 |       |-- uninstall.sh
+|   |-- omp/
+|       |-- target.sh
+|       |-- install.sh        # content/* -> ~/.omp/agent/* (see omp support above)
+|       |-- uninstall.sh
 |   |-- opencode/
 |       |-- target.sh
 |       |-- install.sh        # content/* -> ~/.config/opencode/* (see OpenCode support above)
@@ -410,7 +463,7 @@ everything-claude-code/
 |   |-- lib/build-agents-md.sh   # AGENTS.md generator (global.md + target addendum + rules index)
 |   |-- lib/external-skills.sh   # Installs content/external-skills.json for a target
 |   |-- lib/prune.sh             # Manifest and orphan pruning
-|   |-- lib/pi-agents.sh         # Converts shared agents to pi tool names
+|   |-- lib/pi-agents.sh         # Converts shared agents to pi or omp tool names
 |   |-- lib/opencode-agents.sh   # Converts shared agents to OpenCode's format
 |   |-- lib/upstream-extensions.sh  # Fetches pinned upstream pi extensions
 |   |-- node/                # Node.js hook runtime scripts
@@ -443,7 +496,8 @@ other registration.
    file), `external-skills.sh` (external skills), `prune.sh` (manifest and
    `-p`), and `common.sh` (copy, log, dry-run).
 4. Add tests under `tests/scripts/`. Use `targets/pi/` and
-   `tests/scripts/pi-target.test.js` as a template.
+   `tests/scripts/pi-target.test.js` as a template (`targets/omp/` and
+   `tests/scripts/omp-target.test.js` are a smaller one).
 
 ---
 

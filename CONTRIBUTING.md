@@ -89,12 +89,12 @@ appropriate directory:
 - `content/targets/claude/hooks/<lang>/` for hook configurations
 - `content/mcp/` for MCP server configs
 - `content/targets/<target>/` for content only one target consumes (Codex
-  subagent role files, pi extensions, OpenCode `opencode.json`, per-target `instructions.md` addenda)
+  subagent role files, pi and omp extensions, OpenCode `opencode.json`, per-target `instructions.md` addenda)
 - `content/external-skills.json` for external skills cloned at install time
 
 Target-specific install logic (how content gets copied into `~/.claude` or
-`~/.codex`, `~/.pi/agent`, `~/.config/opencode`) lives in `targets/<target>/`
-(`claude`, `codex`, `pi`, `opencode`; each has a `target.sh` registry entry),
+`~/.codex`, `~/.pi/agent`, `~/.omp/agent`, `~/.config/opencode`) lives in `targets/<target>/`
+(`claude`, `codex`, `pi`, `omp`, `opencode`; each has a `target.sh` registry entry),
 not alongside the content itself.
 New content only needs a place under `content/`; you shouldn't need to touch
 `targets/` unless you're changing how a category is installed. To add a whole
